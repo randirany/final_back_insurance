@@ -1,0 +1,24 @@
+import { Router } from "express";
+import { auth } from "../../midlleWare/auth.js";
+import { endPoints } from "./user.endpoints.js";
+import * as userRoute from './controller/user.controller.js'
+import { validation } from "../../midlleWare/validation.js";
+import * as userValid from '../User/user.validation.js'
+const userRouter=Router();
+userRouter.put('/changepassword',auth(endPoints.prof),userRoute.changepassword)
+userRouter.put('/change',auth(endPoints.prof),userRoute.changeInformation)
+userRouter.get('/profile',auth(endPoints.prof),userRoute.profile)
+userRouter.post('/add',userRoute.addAdmin)
+userRouter.post('/signin',validation(userValid.signin),userRoute.signin)
+
+userRouter.patch('/sendcode',validation(userValid.sendCode),userRoute.sendCode)
+userRouter.patch('/forgetpassword',validation(userValid.forgetPassword),userRoute.forgetPassward)
+userRouter.post('/addHeadOfEmployeeToDepartment/:id',auth(endPoints.addHeadOfDepartmentToDepartmen),validation(userValid.addHeadOfDepartmentToDepartment),userRoute.addHeadOfDepartmentToDepartment)
+userRouter.delete('/deleteHeadOfEmployeeFromDepartment/:depId/:userId', auth(endPoints.deleteHeadOfDepartmentToDepartmen),userRoute.deleteHeadOfDepartmentFromDepartment)
+userRouter.get('/getHeadOfEmployee/:id', auth(endPoints.getHeadOfDepartment), userRoute.getHeadOfDepartment)
+userRouter.post('/addEmployee/:id', auth(endPoints.addEmployee),validation(userValid.AddEmployee), userRoute.addEmployee)
+userRouter.delete('/deleteEmployee/:depId/:employeeId',auth(endPoints.deleteEmployee), userRoute.deleteEmployee)
+userRouter.get('/allEmployee/:depId' , auth(endPoints.allEmployee),userRoute.allEmployee)
+
+
+export default userRouter;
