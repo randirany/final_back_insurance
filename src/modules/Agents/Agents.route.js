@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as agentRouter from './controller/Agents.controller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endPoints } from "./Agents.endpoint.js";
 
 const AgentRouter=Router();

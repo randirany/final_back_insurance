@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { auth } from "../../midlleWare/auth.js";
-import { endPoints } from "./user.endpoints.js";
+import { auth } from "../../middleware/auth.js";
+import { endPoints } from "./user.endpoint.js";
 import * as userRoute from './controller/user.controller.js'
-import { validation } from "../../midlleWare/validation.js";
+import { validation } from "../../middleware/validation.js";
 import * as userValid from '../User/user.validation.js'
 const userRouter=Router();
 userRouter.put('/changepassword',auth(endPoints.prof),userRoute.changepassword)

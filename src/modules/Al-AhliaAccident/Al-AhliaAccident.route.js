@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as AlAhliaAccidentRoute from './controller/Al-AhliaAccident.controller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endpoints } from "./Al-AhliaAccident.endpoint.js";
 
 const AlAhliaAccidentRouter=Router();

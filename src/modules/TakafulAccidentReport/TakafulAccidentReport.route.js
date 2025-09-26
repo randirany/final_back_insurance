@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as TakafulAccidentReportRoute from './controller/TakafulAccidentReport.controller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endPoints } from "./TakafulAccidentReport.endpoint.js";
 
 const TakafulAccidentReportRouter=Router();

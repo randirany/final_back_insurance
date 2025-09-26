@@ -1,5 +1,5 @@
-import { accidentModel } from "../../../../DB/models/accedent.model.js";
-import cloudenary from "../../../Servicess/cloudenary.js";
+import { accidentModel } from "../../../../DB/models/Accident.model.js";
+import cloudenary from "../../../services/cloudenary.js";
 import { insuredModel } from '../../../../DB/models/Insured.model.js';
 
 

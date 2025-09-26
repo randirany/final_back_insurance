@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { auth } from "../../midlleWare/auth.js";
-import { endPoints } from "./department.endpoints.js";
+import { auth } from "../../middleware/auth.js";
+import { endPoints } from "./department.endpoint.js";
 import * as departmentRoute from './controller/department.controller.js'
 
 const departmentRouter=Router();

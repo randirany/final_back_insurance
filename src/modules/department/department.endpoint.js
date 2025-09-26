@@ -1,4 +1,4 @@
-import { roles } from "../../Servicess/roles.js";
+import { roles } from "../../services/roles.js";
 export const endPoints={
 
     addDepartment:[roles.Admin],

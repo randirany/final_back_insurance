@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as Al_MashreqAccidentReportRoute from './controller/Al-MashreqAccidentReportAl-MashreqAccidentReport.conroller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endpoints } from "./Al-MashreqAccidentReport.endpoint.js";
 
 const Al_MashreqAccidentReportRouter=Router();

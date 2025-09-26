@@ -2,7 +2,7 @@ import { userModel } from "../../../../DB/models/user.model.js";
 import bcrypt from 'bcryptjs'
 import { nanoid } from "nanoid"
 import jwt from "jsonwebtoken"
-import { sendEmail } from "../../../Servicess/email.js";
+import { sendEmail } from "../../../services/email.js";
 import DepartmentModel from "../../../../DB/models/Department.model.js";
 import AuditLogModel from "../../../../DB/models/AuditLog.model.js";
 

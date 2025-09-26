@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as TrustAccidentReportRouterRoute from './controller/TrustAccidentReport.controller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endpoints } from "./TrustAccidentReport.endpoint.js";
 
 const TrustAccidentReportRouter=Router();

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as HolyLandsReportRoute from './controller/HolyLandsReport.controller.js'
-import { auth } from "../../midlleWare/auth.js";
+import { auth } from "../../middleware/auth.js";
 import { endpoints } from "./HolyLandsReport.endpoint.js";
 
 const HolyLandsReportRouter=Router();

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as PalestineAccidentReportRoute from './controller/PalestineAccidentReport.controller.js'
-import { auth } from "../../midlleWare/auth.js";
-import { endpoints } from "./PalestineAccidentReport.endpoints.js";
+import { auth } from "../../middleware/auth.js";
+import { endpoints } from "./PalestineAccidentReport.endpoint.js";
 
 const PalestineAccidentReportRouter=Router();
 PalestineAccidentReportRouter.post('/add/:plateNumber',auth(endpoints.addPalestineAccidentReport),PalestineAccidentReportRoute.addAccedentReport)

@@ -1,4 +1,4 @@
-import cloudenary from "../../../Servicess/cloudenary.js";
+import cloudenary from "../../../services/cloudenary.js";
 import { insuredModel } from '../../../../DB/models/Insured.model.js';
 import { userModel } from "../../../../DB/models/user.model.js";
 import InsuranceCompany from "../../../../DB/models/insuranceCompany.model.js";

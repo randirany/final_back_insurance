@@ -1,4 +1,4 @@
-import { roles } from "../../Servicess/roles.js";
+import { roles } from "../../services/roles.js";
 export const endPoints={
    
    prof:[roles.Admin,roles.Insured,roles.Agents,roles.HeadOfEmployee],

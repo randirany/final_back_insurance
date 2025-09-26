@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { auth } from "../../midlleWare/auth.js";
-import { endPoints } from "./insured.endpoints.js";
+import { auth } from "../../middleware/auth.js";
+import { endPoints } from "./insured.endpoint.js";
 import * as insuredRoute from './controller/insured.controller.js'
-import { fileValidation, myMulter } from "../../Servicess/multer.js";
-import  {checkDepartmentPermission}  from "../../midlleWare/checkDepartmentPermission.js";
+import { fileValidation, myMulter } from "../../services/multer.js";
+import  {checkDepartmentPermission}  from "../../middleware/checkDepartmentPermission.js";
 const insuredRouter=Router();
 insuredRouter.post('/addInsured',auth(endPoints.addInsured), myMulter(fileValidation.imag).single('image'),insuredRoute.addInsured )
 insuredRouter.delete('/deleteInsured/:id', auth(endPoints.deleteInsured),insuredRoute.deleteInsured)

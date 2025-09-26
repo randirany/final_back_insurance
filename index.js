@@ -6,7 +6,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import ConnectDb from './DB/connection.js';
 import * as indexRouter from './src/modules/index.route.js';
-import errorHandler from './src/midlleWare/errorHandler.js';
+import errorHandler from './src/middleware/errorHandler.js';
 import helmet from "helmet";
 dotenv.config();
 
