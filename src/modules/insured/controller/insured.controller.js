@@ -587,8 +587,8 @@ export const showVehicles = async (req, res) => {
 export const getTotalVehicles = async (req, res, next) => {
   try {
     const result = await insuredModel.aggregate([
-      { $unwind: "$vehicles" },           // نفك كل مركبة كسطر مستقل
-      { $count: "totalVehicles" }         // نعد كل المركبات
+      { $unwind: "$vehicles" },           
+      { $count: "totalVehicles" }        
     ]);
 
     const total = result.length > 0 ? result[0].totalVehicles : 0;
@@ -1112,6 +1112,7 @@ export const getPaymentsByMethod = async (req, res, next) => {
     let visaPayments = 0;
     let cashPayments = 0;
     let checkPayments = 0;
+    let bankPayments = 0; // 💰 إضافة بنك ترانسفير
 
     insureds.forEach(insured => {
       insured.vehicles.forEach(vehicle => {
@@ -1125,6 +1126,8 @@ export const getPaymentsByMethod = async (req, res, next) => {
             cashPayments += amount;
           } else if (method === "شيكات" || method.toLowerCase() === "check" || method.toLowerCase() === "cheque") {
             checkPayments += amount;
+          } else if (method === "bank_transfer" || method.toLowerCase() === "bank_transfer") {
+            bankPayments += amount; // 💰 احتساب التحويل البنكي
           }
         });
       });
@@ -1133,13 +1136,15 @@ export const getPaymentsByMethod = async (req, res, next) => {
     return res.status(200).json({
       visaPayments,
       cashPayments,
-      checkPayments
+      checkPayments,
+      bankPayments 
     });
   } catch (error) {
     console.error("Error calculating payments by method:", error);
     next(error);
   }
 };
+
 
 export const getReturnedChecksAmount = async (req, res, next) => {
   try {

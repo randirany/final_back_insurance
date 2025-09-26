@@ -97,6 +97,9 @@ export const deleteAccident = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
 export const totalAccidents = async (req, res, next) => {
   try {
     const count = await accidentModel.countDocuments();
