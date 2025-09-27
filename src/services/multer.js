@@ -13,7 +13,7 @@ export function myMulter(customValidation) {
     if (customValidation.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('نوع الملف غير مدعوم'), false); 
+      cb(new Error('Unsupported file type'), false); 
     }
   }     
   
@@ -48,7 +48,7 @@ export const fileValidation = {
 
 export const HME = (error, req, res, next) => {
   if (error) {
-    res.status(400).json({ message: 'خطأ في رفع الملف', error: error.message });
+    res.status(400).json({ message: 'File upload error', error: error.message });
   } else {
     next();
   }

@@ -9,7 +9,7 @@ const vehicleInsuranceSchema = new mongoose.Schema({
   insuranceCategory: {
     type: String,
     required: true,
-    enum: ["تأمين سيارات"]
+    enum: ["vehicle_insurance"]
   },
 
   insuranceType: {

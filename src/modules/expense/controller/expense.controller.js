@@ -114,7 +114,7 @@ export const cancelInsurance = async (req, res, next) => {
     await expense.save();
 
     return res.status(200).json({
-      message: "تم إلغاء التأمين وتسجيل المصروف",
+      message: "Insurance cancelled and expense recorded",
       insurance,
       expense,
     });

@@ -48,7 +48,7 @@ const AhliaAccidentReportSchema = new Schema({
     time: { type: String },                       
     weather: { type: String },                    
     purposeOfUse: { type: String },                
-    accidentType: { type: String, enum: ['جسدي', 'مادي', 'جسدي + مادي'] }, 
+    accidentType: { type: String, enum: ['bodily', 'material', 'bodily_and_material'] }, 
     sketch: { type: String },                      
     driverStatement: { type: String },             
     signature: { type: String }                   

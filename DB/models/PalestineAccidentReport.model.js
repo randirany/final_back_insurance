@@ -19,7 +19,7 @@ const driverInfoSchema = new Schema({
 const agentInfoSchema = new Schema({
   agentName: String,
   documentNumber: String,
-  documentType: { type: String, enum: ['شامل', 'طرف ثالث'] },
+  documentType: { type: String, enum: ['comprehensive', 'third_party'] },
   insurancePeriod: {
     from: Date,
     to: Date,

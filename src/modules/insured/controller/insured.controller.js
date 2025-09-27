@@ -71,7 +71,7 @@ export const addInsured = async (req, res, next) => {
 
     const validVehicles = (vehicles && vehicles.length > 0)
       ? vehicles.map(vehicle => ({
-        plateNumber: vehicle.plateNumber || 'غير معروف',
+        plateNumber: vehicle.plateNumber || 'unknown',
         model: vehicle.model,
         type: vehicle.type,
         ownership: vehicle.ownership,
@@ -419,7 +419,7 @@ export const addVehicle = async (req, res, next) => {
       secure_url = uploadedUrl;
     }
     const newVehicle = {
-      plateNumber: plateNumber || 'غير معروف',
+      plateNumber: plateNumber || 'unknown',
       model,
       type,
       ownership,
@@ -772,7 +772,7 @@ export const addInsuranceToVehicle = async (req, res, next) => {
       insuranceStartDate,
       insuranceEndDate,
       isUnder24,
-      insuranceCategory: "تأمين سيارات",
+      insuranceCategory: "vehicle_insurance",
       insuranceType,
       insuranceCompany,
       agent,
@@ -1294,7 +1294,7 @@ export const getVehicleInsuranceReport = async (req, res, next) => {
     const { startDate, endDate, agent, company } = req.query;
 
 
-    const matchStage = { "vehicles.insurance.insuranceCategory": "تأمين سيارات" };
+    const matchStage = { "vehicles.insurance.insuranceCategory": "vehicle_insurance" };
 
     if (startDate && endDate) {
       matchStage["vehicles.insurance.insuranceStartDate"] = {

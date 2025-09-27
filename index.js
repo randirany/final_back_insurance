@@ -54,6 +54,7 @@ app.use("/api/v1/agents", indexRouter.AgentRouter);
 app.use("/api/v1/accident", indexRouter.accidentRouter);
 app.use("/api/v1/expense", indexRouter.expenseRouter);
 app.use("/api/v1/revenue", indexRouter.revenueRouter);
+app.use("/api/v1/documentSettings", indexRouter.documentSettingsRouter);
 app.use(errorHandler);
 app.use("*", (req, res) => {
   res.status(404).json({ message: "Invalid Route" });

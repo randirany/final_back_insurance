@@ -19,7 +19,7 @@ const departmentSchema = new Schema(
         name: { type: String, required: true },
         email: { type: String, required: true },
         role: { type: String, default: "HeadOfEmployee" },
-        status:{type: String, default:'نشط'}
+        status:{type: String, default:'active'}
       },
       default: null,
     },
@@ -29,7 +29,7 @@ const departmentSchema = new Schema(
         name: { type: String, required: true },
         email: { type: String, required: true },
         role: { type: String, default: "employee" },
-        status:{type: String, default:'نشط'}
+        status:{type: String, default:'active'}
       },
     ],
  
@@ -55,7 +55,7 @@ const departmentSchema = new Schema(
   }
 );
 
-// لحساب عدد الموظفين تلقائياً
+// Automatically calculate the number of employees
 departmentSchema.virtual("employeeCount").get(function () {
   return this.employees?.length || 0;
 });

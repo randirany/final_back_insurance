@@ -38,7 +38,7 @@ export const changeInformation = async (req, res) => {
     const userId = req.user.id;
     const user = await userModel.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'المستخدم غير موجود.' });
+      return res.status(404).json({ message: 'User not found.' });
     }
     if (email) {
       const existEmail = await userModel.findOne({ email: email })
@@ -102,7 +102,7 @@ export const addAdmin = async (req, res) => {
       email: "islam@ab.com",
       role: "admin",
       password: hashedPassword,
-      status: "نشط"
+      status: "active"
     })
 
     await adminUser.save();

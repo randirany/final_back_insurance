@@ -29,10 +29,10 @@ const userSchema=new Schema({
         default: null
     },
     status:{
-        type:String , 
+        type:String ,
         required:true,
-        enum:["غير نشط",'نشط'],
-        default:"نشط"
+        enum:["inactive","active"],
+        default:"active"
     }
 })
 const userModel=model('user',userSchema)

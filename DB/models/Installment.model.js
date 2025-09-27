@@ -51,7 +51,7 @@ const installmentSchema = new mongoose.Schema({
       paidDate: { type: Date },
       paymentMethod: {
         type: String,
-        enum: ["كاش", "فيزا", "شيك", "بنك"],
+        enum: ["cash", "visa", "check", "bank"],
       },
       notes: { type: String },
     }
