@@ -1,4 +1,4 @@
-import cloudenary from "../../../services/cloudenary.js";
+
 import { insuredModel } from '../../../../DB/models/Insured.model.js';
 import { userModel } from "../../../../DB/models/user.model.js";
 import InsuranceCompany from "../../../../DB/models/insuranceCompany.model.js";
@@ -6,6 +6,7 @@ import InsuranceCompany from "../../../../DB/models/insuranceCompany.model.js";
 import mongoose from "mongoose";
 import { createNotification, sendNotificationLogic } from "../../notification/controller/notification.controller.js";
 import AuditLogModel from "../../../../DB/models/AuditLog.model.js";
+import cloudinary from '../../../services/cloudenary.js';
 
 const logAudit = async ({ userId, action, entity, entityId, userName, oldValue = null, newValue = null }) => {
   try {
@@ -402,8 +403,6 @@ export const updateInsured = async (req, res, next) => {
 
 
 
-
-
 export const addVehicle = async (req, res, next) => {
   try {
     const { insuredId } = req.params;
@@ -412,12 +411,16 @@ export const addVehicle = async (req, res, next) => {
       modelNumber, licenseExpiry, lastTest, color, price
     } = req.body;
 
+    // رفع الصورة إن وُجدت
     let secure_url = '';
-
     if (req.file) {
-      const { secure_url: uploadedUrl } = await cloudenary.uploader.upload(req.file.path, { folder: "Vehicles/image/" });
+      const { secure_url: uploadedUrl } = await cloudenary.uploader.upload(req.file.path, {
+        folder: "Vehicles/image/"
+      });
       secure_url = uploadedUrl;
     }
+
+    // تحضير السيارة الجديدة
     const newVehicle = {
       plateNumber: plateNumber || 'unknown',
       model,
@@ -429,27 +432,30 @@ export const addVehicle = async (req, res, next) => {
       color,
       price,
       image: secure_url,
-      insurance: []
+      insurance: [] // بدون أي تأمين عند الإضافة
     };
 
-
-
+    // جلب المؤمن عليه
     const insured = await insuredModel.findById(insuredId);
     if (!insured) return res.status(404).json({ message: "Insured not found" });
 
+    // إضافة السيارة بدون validate للتجنب مشاكل insurance required
     insured.vehicles.push(newVehicle);
-    await insured.save();
-    const findUser = await userModel.findById(req.user._id)
-    const message = `${findUser.name} add new car , the plate number is ${plateNumber}`
+    await insured.save({ validateBeforeSave: false }); // ✅ هنا
+
+    // إرسال إشعار
+    const findUser = await userModel.findById(req.user._id);
+    const message = `${findUser.name} added new car, plate number: ${plateNumber}`;
     await sendNotificationLogic({
       senderId: req.user._id,
       message
-    })
+    });
 
+    // تسجيل الـ audit
     await logAudit({
       userId: req.user._id,
       userName: findUser.name,
-      action: `add new vehivles by ${findUser.name}`,
+      action: `Added new vehicle by ${findUser.name}`,
       entity: "Vehicle",
       entityId: insuredId,
       oldValue: null,
@@ -462,7 +468,6 @@ export const addVehicle = async (req, res, next) => {
     next(error);
   }
 };
-
 
 export const removeVehicle = async (req, res, next) => {
   try {
@@ -726,9 +731,11 @@ export const removeInsuranceFromVehicle = async (req, res, next) => {
 
 
 
+
+
 export const addInsuranceToVehicle = async (req, res, next) => {
   const { insuredId, vehicleId } = req.params;
-  const { insuranceType, insuranceCompany, agent, paymentMethod, paidAmount, isUnder24 } = req.body;
+  const { insuranceType, insuranceCompany, agent, paymentMethod, paidAmount, isUnder24 ,priceisOnTheCustomer } = req.body;
 
   try {
     const insured = await insuredModel.findById(insuredId);
@@ -758,14 +765,15 @@ export const addInsuranceToVehicle = async (req, res, next) => {
 
 
     let insuranceFilesUrls = [];
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const result = await cloudenary.uploader.upload(file.path, {
-          folder: "Insured/insuranceFiles/",
-        });
-        insuranceFilesUrls.push(result.secure_url);
-      }
-    }
+if (req.files && req.files.length > 0) {
+  for (const file of req.files) {
+    const result = await cloudinary.uploader.upload(file.path, {
+      folder: "Insured/insuranceFiles/",
+    });
+    insuranceFilesUrls.push(result.secure_url);
+  }
+}
+   
 
 
     const newInsurance = {
@@ -779,7 +787,8 @@ export const addInsuranceToVehicle = async (req, res, next) => {
       paymentMethod,
       insuranceAmount,
       paidAmount: paidAmount || 0,
-      insuranceFiles: insuranceFilesUrls
+      insuranceFiles: insuranceFilesUrls,
+      priceisOnTheCustomer
     };
 
     vehicle.insurance.push(newInsurance);

@@ -1,8 +1,9 @@
+
 import mongoose, { Schema } from "mongoose";
 
 
 const vehicleInsuranceSchema = new mongoose.Schema({
-  insuranceStartDate: { type: Date},
+  insuranceStartDate: { type: Date },
   insuranceEndDate: { type: Date },
   isUnder24: { type: Boolean, required: true },
 
@@ -15,7 +16,7 @@ const vehicleInsuranceSchema = new mongoose.Schema({
   insuranceType: {
     type: String,
     required: true,
-enum: ["compulsory", "comprehensive"]
+    enum: ["compulsory", "comprehensive"]
   },
 
   insuranceCompany: { type: String, required: true },
@@ -24,16 +25,21 @@ enum: ["compulsory", "comprehensive"]
   paymentMethod: {
     type: String,
     required: true,
-    enum: ["cash","card","check","bank_transfer"]
+    enum: ["cash", "card", "check", "bank_transfer"]
   },
 
   insuranceAmount: { type: Number },
+
   paidAmount: { type: Number, required: true },
   remainingDebt: { type: Number },
-  insuranceStatus: { type: String, default: "active" }, 
-  refundAmount: { type: Number, default: 0 }, 
+  insuranceStatus: { type: String, default: "active" },
+  refundAmount: { type: Number, default: 0 },
   insuranceFiles: [{ type: String, required: true }],
+  priceisOnTheCustomer: {
 
+    type: Number,
+    required: true
+  },
 
   checkDetails: [{
     checkNumber: { type: String },
@@ -72,19 +78,20 @@ const vehicleSchema = new mongoose.Schema({
 
 
 const insuredSchema = new mongoose.Schema({
-  image: { type: String ,  default: "https://www.bing.com/images/search?view=detailV2&ccid=eUdZe6jP&id=4FC8766F458838654929A06B2EC9D65088D0A1C8&thid=OIP.eUdZe6jPSNXtNAbxcswuIgHaE8" },
+  image: { type: String, default: "https://www.bing.com/images/search?view=detailV2&ccid=eUdZe6jP&id=4FC8766F458838654929A06B2EC9D65088D0A1C8&thid=OIP.eUdZe6jPSNXtNAbxcswuIgHaE8" },
   first_name: { type: String, required: true },
   last_name: { type: String, required: true },
   id_Number: { type: Number, required: true },
   phone_number: { type: String, required: true },
-  joining_date: { type: Date, default:Date.now },
+  joining_date: { type: Date, default: Date.now },
   notes: { type: String },
   city: { type: String, required: true },
   email: { type: String, required: true },
   birth_date: { type: Date, required: true },
   agentsId: { type: Schema.Types.ObjectId, ref: "user" },
   agentsName: { type: String },
-    attachments: [{
+
+  attachments: [{
     fileName: { type: String },
     fileUrl: { type: String, required: true },
     uploadedAt: { type: Date, default: Date.now }
