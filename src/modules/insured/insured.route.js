@@ -16,6 +16,7 @@ insuredRouter.post( "/customers/:id/upload",myMulter(fileValidation.all).array('
 insuredRouter.get('/allVec/:id', auth(endPoints.showVehicles),insuredRoute.showVehicles)
 insuredRouter.patch('/updatevic/:insuredId/:vehicleId',auth(endPoints.updateCar),insuredRoute.updateVehicle)
 insuredRouter.delete('/del/:insuredId/:vehicleId', auth(endPoints.removeCar),insuredRoute.removeVehicle)
+insuredRouter.get('/getAllInsurances/:insuredId', insuredRoute.getAllInsurancesForInsured)
 insuredRouter.post('/addInsurance/:insuredId/:vehicleId', auth(endPoints.addcar),myMulter(fileValidation.pdf).array("insuranceFiles", 10),insuredRoute.addInsuranceToVehicle)
 insuredRouter.delete('/removeInsuranceFromVehicle/:insuredId/:vehicleId/:insuranceId',auth(endPoints.deleteInsured),insuredRoute.removeInsuranceFromVehicle)
 insuredRouter.get('/get/:insuredId/:vehicleId',auth(endPoints.showVehicles),insuredRoute.getInsurancesForVehicle)

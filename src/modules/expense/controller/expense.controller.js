@@ -81,6 +81,12 @@ export const deleteExpense = async (req, res, next) => {
 
 
 
+
+
+
+
+
+
 export const cancelInsurance = async (req, res, next) => {
   try {
     const { insuredId, vehicleId, insuranceId } = req.params;
@@ -95,23 +101,23 @@ export const cancelInsurance = async (req, res, next) => {
     const insurance = vehicle.insurance.id(insuranceId);
     if (!insurance) return res.status(404).json({ message: "The insurance is not available." });
 
-   
-    insurance.insuranceStatus = "cancelled";
-    insurance.refundAmount = refundAmount;
+insurance.insuranceStatus = "cancelled";
+insurance.refundAmount = refundAmount;
 
-    await insured.save();
+// تخطي التحقق من الحقول required
+await insured.save({ validateBeforeSave: false });
 
-   
-    const receiptNumber = `EXP-${Date.now()}`;
-    const expense = new ExpenseModel({
-      title: `Refund for cancelled insurance (${insurance.insuranceCompany})`,
-      amount: refundAmount,
-      paidBy,
-      paymentMethod,
-      description,
-      receiptNumber,
-    });
-    await expense.save();
+// إنشاء المصروف كالمعتاد
+const receiptNumber = `EXP-${Date.now()}`;
+const expense = new ExpenseModel({
+  title: `Refund for cancelled insurance (${insurance.insuranceCompany})`,
+  amount: refundAmount,
+  paidBy,
+  paymentMethod,
+  description,
+  receiptNumber,
+});
+await expense.save();
 
     return res.status(200).json({
       message: "Insurance cancelled and expense recorded",
@@ -122,6 +128,15 @@ export const cancelInsurance = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
+
+
+
+
+
+
 
 export const getCompanyFinancialReport = async (req, res, next) => {
   try {
