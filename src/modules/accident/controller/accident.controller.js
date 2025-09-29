@@ -1,5 +1,5 @@
 import { accidentModel } from "../../../../DB/models/Accident.model.js";
-import cloudenary from "../../../services/cloudenary.js";
+import cloudinary from "../../../services/cloudinary.js";
 import { insuredModel } from '../../../../DB/models/Insured.model.js';
 
 
@@ -29,7 +29,7 @@ export const addAccident = async (req, res, next) => {
     let uploadedImages = [];
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const result = await cloudenary.uploader.upload(file.path, {
+        const result = await cloudinary.uploader.upload(file.path, {
           folder: "accidents",
         });
         uploadedImages.push(result.secure_url);
@@ -126,7 +126,7 @@ export const updateAccident = async (req, res, next) => {
 
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
-        const result = await cloudenary.uploader.upload(file.path, {
+        const result = await cloudinary.uploader.upload(file.path, {
           folder: "accidents",
         });
         accident.images.push(result.secure_url);

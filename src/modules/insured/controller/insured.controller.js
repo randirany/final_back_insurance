@@ -6,7 +6,7 @@ import InsuranceCompany from "../../../../DB/models/insuranceCompany.model.js";
 import mongoose from "mongoose";
 import { createNotification, sendNotificationLogic } from "../../notification/controller/notification.controller.js";
 import AuditLogModel from "../../../../DB/models/AuditLog.model.js";
-import cloudinary from '../../../services/cloudenary.js';
+import cloudinary from '../../../services/cloudinary.js';
 
 const logAudit = async ({ userId, action, entity, entityId, userName, oldValue = null, newValue = null }) => {
   try {
@@ -61,7 +61,7 @@ export const addInsured = async (req, res, next) => {
 
     if (req.file) {
 
-      const { secure_url } = await cloudenary.uploader.upload(req.file.path, {
+      const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
         folder: "Insured/image/",
       });
       imageUrl = secure_url;
@@ -369,7 +369,7 @@ export const updateInsured = async (req, res, next) => {
     };
 
     if (req.file) {
-      const { secure_url } = await cloudenary.uploader.upload(req.file.path, {
+      const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
         folder: "Insured/image/"
       });
       updatedData.image = secure_url;
@@ -414,7 +414,7 @@ export const addVehicle = async (req, res, next) => {
     // رفع الصورة إن وُجدت
     let secure_url = '';
     if (req.file) {
-      const { secure_url: uploadedUrl } = await cloudenary.uploader.upload(req.file.path, {
+      const { secure_url: uploadedUrl } = await cloudinary.uploader.upload(req.file.path, {
         folder: "Vehicles/image/"
       });
       secure_url = uploadedUrl;
@@ -636,7 +636,7 @@ export const uploadCustomerFiles = async (req, res, next) => {
     let uploadedFiles = [];
 
     for (let file of req.files) {
-      const { secure_url } = await cloudenary.uploader.upload(file.path, {
+      const { secure_url } = await cloudinary.uploader.upload(file.path, {
         folder: `Insured/${id}/attachments`
       });
 
@@ -899,7 +899,7 @@ export const addCheckToInsurance = async (req, res, next) => {
 
     let checkImageUrl = null;
     if (req.file) {
-      const result = await cloudenary.uploader.upload(req.file.path, {
+      const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "Checks/"
       });
       checkImageUrl = result.secure_url;
