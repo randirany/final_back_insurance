@@ -432,18 +432,18 @@ export const addVehicle = async (req, res, next) => {
       color,
       price,
       image: secure_url,
-      insurance: [] // بدون أي تأمين عند الإضافة
+      insurance: [] 
     };
 
-    // جلب المؤمن عليه
+    
     const insured = await insuredModel.findById(insuredId);
     if (!insured) return res.status(404).json({ message: "Insured not found" });
 
-    // إضافة السيارة بدون validate للتجنب مشاكل insurance required
+   
     insured.vehicles.push(newVehicle);
-    await insured.save({ validateBeforeSave: false }); // ✅ هنا
+    await insured.save({ validateBeforeSave: false }); 
 
-    // إرسال إشعار
+
     const findUser = await userModel.findById(req.user._id);
     const message = `${findUser.name} added new car, plate number: ${plateNumber}`;
     await sendNotificationLogic({
@@ -737,6 +737,7 @@ export const addInsuranceToVehicle = async (req, res, next) => {
   const { insuredId, vehicleId } = req.params;
   const { insuranceType, insuranceCompany, agent, paymentMethod, paidAmount, isUnder24 ,priceisOnTheCustomer } = req.body;
 
+
   try {
     const insured = await insuredModel.findById(insuredId);
     if (!insured) return res.status(404).json({ message: "Insured not found" });
@@ -790,9 +791,11 @@ if (req.files && req.files.length > 0) {
       insuranceFiles: insuranceFilesUrls,
       priceisOnTheCustomer
     };
+   
 
     vehicle.insurance.push(newInsurance);
-    await insured.save();
+
+await insured.save({ validateBeforeSave: false });
 
     const findUser = await userModel.findById(req.user._id);
 
@@ -848,6 +851,27 @@ export const getInsurancesForVehicle = async (req, res, next) => {
     res.status(200).json({ insurances });
   } catch (error) {
     console.error("Error retrieving insurances:", error);
+    next(error);
+  }
+};
+
+
+// API to get all insurances for an insured (for all vehicles)
+export const getAllInsurancesForInsured = async (req, res, next) => {
+  const { insuredId } = req.params;
+
+  try {
+    const insured = await insuredModel.findById(insuredId);
+    if (!insured) {
+      return res.status(404).json({ message: "Insured not found" });
+    }
+
+    // نجمع كل التأمينات من كل السيارات
+    const allInsurances = insured.vehicles.flatMap(vehicle => vehicle.insurance);
+
+    res.status(200).json({ insurances: allInsurances });
+  } catch (error) {
+    console.error("Error retrieving all insurances:", error);
     next(error);
   }
 };
@@ -1136,7 +1160,7 @@ export const getPaymentsByMethod = async (req, res, next) => {
           } else if (method === "شيكات" || method.toLowerCase() === "check" || method.toLowerCase() === "cheque") {
             checkPayments += amount;
           } else if (method === "bank_transfer" || method.toLowerCase() === "bank_transfer") {
-            bankPayments += amount; // 💰 احتساب التحويل البنكي
+            bankPayments += amount;
           }
         });
       });
