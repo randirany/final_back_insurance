@@ -24,7 +24,7 @@ export const transferInsurance = async (req, res, next) => {
     const newInsurance = { ...insurance.toObject(), _id: new mongoose.Types.ObjectId() };
     toVehicle.insurance.push(newInsurance);
     fromVehicle.insurance.pull(insuranceId);
-    await insured.save();
+await insured.save({ validateBeforeSave: false });
 
    
     const revenue = new RevenueModel({
@@ -36,7 +36,8 @@ export const transferInsurance = async (req, res, next) => {
       fromVehiclePlate: fromVehicle.plateNumber,
       toVehiclePlate: toVehicle.plateNumber
     });
-    await revenue.save();
+      await revenue.save({ validateBeforeSave: false }); 
+  
 
 
     const expense = new ExpenseModel({
@@ -46,7 +47,8 @@ export const transferInsurance = async (req, res, next) => {
       paymentMethod: companyPaymentMethod,
       description
     });
-    await expense.save();
+      await expense.save({ validateBeforeSave: false }); 
+  
 
     return res.status(200).json({
       message: "Insurance transferred successfully",
@@ -146,7 +148,7 @@ export const getCustomerPaymentsReport = async (req, res, next) => {
 };
 
 
-export const getTransferredInsurancesReport = async (req, res, next) => {
+export const geterredInsurancesReport = async (req, res, next) => {
   try {
     const { startDate, endDate, agentName } = req.query;
 
