@@ -65,6 +65,26 @@ export const getExpenses = async (req, res, next) => {
 };
 
 
+export const updateExpense = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { title, amount, paidBy, paymentMethod, description } = req.body;
+
+    const updatedExpense = await ExpenseModel.findByIdAndUpdate(
+      id,
+      { title, amount, paidBy, paymentMethod, description },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedExpense) return res.status(404).json({ message: "Expense not found" });
+
+    res.status(200).json({ message: "Expense updated successfully", expense: updatedExpense });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 export const deleteExpense = async (req, res, next) => {
   try {
     const { id } = req.params;

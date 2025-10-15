@@ -17,6 +17,9 @@ import accidentRouter from "./accident/accident.route.js";
 import expenseRouter from "./expense/expense.route.js";
 import revenueRouter from "./revenue/revenue.route.js";
 import documentSettingsRouter from "./documentSettings/documentSettings.route.js";
+import emailRouter from "./email/email.route.js";
+import smsRouter from "./sms/sms.route.js";
+import paymentRouter from "./payment/payment.route.js";
 
 
 
@@ -39,7 +42,10 @@ export {
     accidentRouter,
     expenseRouter,
     revenueRouter,
-    documentSettingsRouter
+    documentSettingsRouter,
+    emailRouter,
+    smsRouter,
+    paymentRouter
 
 
 }

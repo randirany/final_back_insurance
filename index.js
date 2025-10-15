@@ -55,6 +55,9 @@ app.use("/api/v1/accident", indexRouter.accidentRouter);
 app.use("/api/v1/expense", indexRouter.expenseRouter);
 app.use("/api/v1/revenue", indexRouter.revenueRouter);
 app.use("/api/v1/documentSettings", indexRouter.documentSettingsRouter);
+app.use("/api/v1/email", indexRouter.emailRouter);
+app.use("/api/v1/sms", indexRouter.smsRouter);
+app.use("/api/v1/payment", indexRouter.paymentRouter);
 app.use(errorHandler);
 app.use("*", (req, res) => {
   res.status(404).json({ message: "Invalid Route" });
