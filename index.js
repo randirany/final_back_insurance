@@ -8,10 +8,16 @@ import * as indexRouter from "./src/modules/index.route.js";
 import errorHandler from "./src/middleware/errorHandler.js";
 import socketService from "./src/services/socketService.js";
 import setupProcessErrorHandlers from "./src/utils/processErrorHandlers.js";
+import { initRedis, closeRedis } from "./src/utils/redisClient.js";
 
 dotenv.config();
 
 setupProcessErrorHandlers();
+
+// Initialize Redis (optional - app works without it)
+initRedis().catch(err => {
+  console.log("Redis initialization failed - continuing without cache:", err.message);
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -27,10 +33,16 @@ app.use(helmet());
 
 ConnectDb();
 
+app.use("/api/v1/health", indexRouter.healthRouter);
+app.use("/api/v1/cheque", indexRouter.chequeRouter);
 app.use("/api/v1/user", indexRouter.userRouter);
 app.use("/api/v1/department", indexRouter.departmentRouter);
 app.use("/api/v1/insured", indexRouter.insuredRouter);
 app.use("/api/v1/company", indexRouter.insuranceCompanyRouter);
+app.use("/api/v1/insuranceType", indexRouter.insuranceTypeRouter);
+app.use("/api/v1/roadService", indexRouter.roadServiceRouter);
+app.use("/api/v1/pricing-type", indexRouter.pricingTypeRouter);
+app.use("/api/v1/pricing", indexRouter.insuranceCompanyPricingRouter);
 
 app.use("/api/v1/notification", indexRouter.NotificationRouter);
 app.use(
@@ -66,4 +78,22 @@ app.use("*", (req, res) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(` running in ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM signal received: closing HTTP server and Redis');
+  await closeRedis();
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT signal received: closing HTTP server and Redis');
+  await closeRedis();
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
 });

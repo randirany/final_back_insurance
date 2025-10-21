@@ -2,6 +2,12 @@ import departmentRouter from "./department/department.route.js";
 import insuredRouter from "./insured/insured.route.js";
 import userRouter from "./User/user.route.js";
 import insuranceCompanyRouter from "./insuranceCompany/insuranceCompany.route.js";
+import insuranceTypeRouter from "./insuranceType/insuranceType.route.js";
+import roadServiceRouter from "./roadService/roadService.route.js";
+import healthRouter from "./health/health.route.js";
+import chequeRouter from "./cheque/cheque.route.js";
+import pricingTypeRouter from "./pricingType/pricingType.route.js";
+import insuranceCompanyPricingRouter from "./insuranceCompanyPricing/insuranceCompanyPricing.route.js";
 
 import NotificationRouter from "./notification/notification.route.js";
 import callRouter from "./call/call.route.js";
@@ -28,6 +34,12 @@ export {
     departmentRouter,
     insuredRouter,
     insuranceCompanyRouter,
+    insuranceTypeRouter,
+    roadServiceRouter,
+    healthRouter,
+    chequeRouter,
+    pricingTypeRouter,
+    insuranceCompanyPricingRouter,
 
     NotificationRouter,
     callRouter,

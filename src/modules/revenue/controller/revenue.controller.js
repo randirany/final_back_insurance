@@ -1,8 +1,8 @@
 
 import mongoose from "mongoose";
 import { insuredModel } from "../../../../DB/models/Insured.model.js";
-import { ExpenseModel } from "../../../../DB/models/expense.model.js";
-import { RevenueModel } from "../../../../DB/models/revenue.model.js";
+import { ExpenseModel } from "../../../../DB/models/Expense.model.js";
+import { RevenueModel } from "../../../../DB/models/Revenue.model.js";
 
 export const transferInsurance = async (req, res, next) => {
   try {

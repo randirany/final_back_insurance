@@ -2,6 +2,7 @@ import notificationModel from "../../../../DB/models/notification.model.js";
 import { userModel } from "../../../../DB/models/user.model.js";
 import { io, onlineUsers } from "../../../../index.js";
 import mongoose from 'mongoose';
+import { getPaginationParams, buildPaginatedResponse } from "../../../utils/pagination.js";
 
 const { ObjectId } = mongoose.Types;
 export const sendNotificationLogic = async ({ senderId, message }) => {
@@ -74,12 +75,40 @@ export const createNotification = async (req, res) => {
 export const getNotifications = async (req, res) => {
     try {
         const userId = req.user.id;
-        const notifications = await notificationModel
-            .find({ recipient: userId })
-            .sort({ createdAt: -1 })
-            .lean();
+        const { isRead } = req.query;
+        const { page, limit, skip } = getPaginationParams(req.query);
 
-        return res.status(200).json({ notifications });
+        // Build query
+        const query = { recipient: userId };
+        if (isRead !== undefined) {
+            query.isRead = isRead === 'true';
+        }
+
+        // Get notifications with pagination
+        const [notifications, total] = await Promise.all([
+            notificationModel
+                .find(query)
+                .populate('sender', 'name email role')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            notificationModel.countDocuments(query)
+        ]);
+
+        // Count unread notifications
+        const unreadCount = await notificationModel.countDocuments({
+            recipient: userId,
+            isRead: false
+        });
+
+        const response = buildPaginatedResponse(notifications, total, page, limit);
+
+        return res.status(200).json({
+            message: "Notifications retrieved successfully",
+            unreadCount,
+            ...response
+        });
 
     } catch (error) {
         return res.status(500).json({ message: `An error occurred: ${error.message}` });

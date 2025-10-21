@@ -16,7 +16,7 @@ const vehicleInsuranceSchema = new mongoose.Schema({
   insuranceType: {
     type: String,
     required: true,
-    enum: ["compulsory", "comprehensive"]
+    trim: true
   },
 
   insuranceCompany: { type: String, required: true },
@@ -41,12 +41,10 @@ const vehicleInsuranceSchema = new mongoose.Schema({
     required: true
   },
 
-  checkDetails: [{
-    checkNumber: { type: String },
-    checkDueDate: { type: Date },
-    checkAmount: { type: Number },
-    isReturned: { type: Boolean, default: false },
-    checkImage: { type: String }
+  // Reference to separate Cheque documents
+  cheques: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Cheque"
   }]
 });
 
@@ -59,7 +57,7 @@ vehicleInsuranceSchema.pre("save", function (next) {
 
 
 const vehicleSchema = new mongoose.Schema({
-  plateNumber: { type: Number, required: true },
+  plateNumber: { type: String, required: true, trim: true },
   model: { type: String, required: true },
   type: { type: String, required: true },
   ownership: { type: String, required: true },
@@ -81,7 +79,7 @@ const insuredSchema = new mongoose.Schema({
   image: { type: String, default: "https://www.bing.com/images/search?view=detailV2&ccid=eUdZe6jP&id=4FC8766F458838654929A06B2EC9D65088D0A1C8&thid=OIP.eUdZe6jPSNXtNAbxcswuIgHaE8" },
   first_name: { type: String, required: true },
   last_name: { type: String, required: true },
-  id_Number: { type: Number, required: true },
+  id_Number: { type: String, required: true, trim: true },
   phone_number: { type: String, required: true },
   joining_date: { type: Date, default: Date.now },
   notes: { type: String },
@@ -98,6 +96,17 @@ const insuredSchema = new mongoose.Schema({
   }],
   vehicles: [vehicleSchema]
 }, { timestamps: true });
+
+// Database indexes for performance optimization
+insuredSchema.index({ id_Number: 1 }, { unique: true });
+insuredSchema.index({ phone_number: 1 });
+insuredSchema.index({ email: 1 });
+insuredSchema.index({ agentsName: 1 });
+insuredSchema.index({ joining_date: -1 });
+insuredSchema.index({ 'vehicles.plateNumber': 1 });
+insuredSchema.index({ 'vehicles.insurance.insuranceEndDate': 1 });
+insuredSchema.index({ 'vehicles.insurance.insuranceCompany': 1 });
+insuredSchema.index({ 'vehicles.insurance.agent': 1 });
 
 
 

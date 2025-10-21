@@ -1,4 +1,4 @@
-import { ExpenseModel } from "../../../../DB/models/expense.model.js";
+import { ExpenseModel } from "../../../../DB/models/Expense.model.js";
 import { insuredModel } from "../../../../DB/models/Insured.model.js";
 
 

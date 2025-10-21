@@ -1,4 +1,6 @@
 import InsuranceCompany from "../../../../DB/models/insuranceCompany.model.js";
+import { InsuranceTypeModel } from "../../../../DB/models/InsuranceType.model.js";
+import { RoadServiceModel } from "../../../../DB/models/RoadService.model.js";
 import AuditLogModel from "../../../../DB/models/AuditLog.model.js";
 import { userModel } from "../../../../DB/models/user.model.js";
 import {  sendNotificationLogic } from "../../notification/controller/notification.controller.js";
@@ -20,36 +22,34 @@ const logAudit = async ({ userId, action, entity, entityId,userName, oldValue = 
 
 export const addInsuranceCompany = async (req, res, next) => {
   try {
-    const { name, insuranceTypes, roadServices } = req.body;
+    const { name, insuranceTypeIds, roadServiceIds } = req.body;
 
-    
-    if (!name || !Array.isArray(insuranceTypes) || insuranceTypes.length === 0) {
-      return res.status(400).json({ message: "Name and at least one insurance type are required!" });
-    }
-    
 
-   
-    for (const ins of insuranceTypes) {
-      if (!ins.type || ins.price == null) {
-        return res.status(400).json({ message: "Each insurance type must have a type and a price!" });
-      }
-      if (!["compulsory", "comprehensive"].includes(ins.type)) {
-        return res.status(400).json({ message: "Insurance type must be 'compulsory' or 'comprehensive'!" });
-      }
+    if (!name || !Array.isArray(insuranceTypeIds) || insuranceTypeIds.length === 0) {
+      return res.status(400).json({ message: "Name and at least one insurance type ID are required!" });
     }
 
-  
-    const validRoadServices = (roadServices || []).map(service => {
-      if (!service.name || service.price == null) {
-        throw new Error("Each road service must have a name and price");
+
+    // Verify all insurance type IDs exist
+    const insuranceTypes = await InsuranceTypeModel.find({ _id: { $in: insuranceTypeIds } });
+    if (insuranceTypes.length !== insuranceTypeIds.length) {
+      return res.status(400).json({ message: "One or more insurance type IDs are invalid!" });
+    }
+
+    // Verify all road service IDs exist (if provided)
+    let validRoadServiceIds = [];
+    if (roadServiceIds && Array.isArray(roadServiceIds) && roadServiceIds.length > 0) {
+      const roadServices = await RoadServiceModel.find({ _id: { $in: roadServiceIds } });
+      if (roadServices.length !== roadServiceIds.length) {
+        return res.status(400).json({ message: "One or more road service IDs are invalid!" });
       }
-      return service;
-    });
+      validRoadServiceIds = roadServiceIds;
+    }
 
     const newCompany = new InsuranceCompany({
       name,
-      insuranceTypes,
-      roadServices: validRoadServices
+      insuranceTypes: insuranceTypeIds,
+      roadServices: validRoadServiceIds
     });
 
     await newCompany.save();
@@ -86,7 +86,7 @@ export const addInsuranceCompany = async (req, res, next) => {
 export const updateInsuranceCompany = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, insuranceTypes, roadServices } = req.body;
+    const { name, insuranceTypeIds, roadServiceIds } = req.body;
 
     const existingCompany = await InsuranceCompany.findById(id);
     if (!existingCompany) {
@@ -95,29 +95,26 @@ export const updateInsuranceCompany = async (req, res, next) => {
 
     const oldValue = existingCompany.toObject();
 
-    
+
     const updatedData = {};
     if (name) updatedData.name = name;
 
-    if (Array.isArray(insuranceTypes) && insuranceTypes.length > 0) {
-      for (const ins of insuranceTypes) {
-        if (!ins.type || ins.price == null) {
-          return res.status(400).json({ message: "Each insurance type must have a type and a price!" });
-        }
-        if (!["compulsory", "comprehensive"].includes(ins.type)) {
-          return res.status(400).json({ message: "Insurance type must be 'compulsory' or 'comprehensive'!" });
-        }
+    if (Array.isArray(insuranceTypeIds) && insuranceTypeIds.length > 0) {
+      // Verify all insurance type IDs exist
+      const insuranceTypes = await InsuranceTypeModel.find({ _id: { $in: insuranceTypeIds } });
+      if (insuranceTypes.length !== insuranceTypeIds.length) {
+        return res.status(400).json({ message: "One or more insurance type IDs are invalid!" });
       }
-      updatedData.insuranceTypes = insuranceTypes;
+      updatedData.insuranceTypes = insuranceTypeIds;
     }
 
-    if (Array.isArray(roadServices)) {
-      for (const service of roadServices) {
-        if (!service.name || service.price == null) {
-          return res.status(400).json({ message: "Each road service must have a name and price!" });
-        }
+    if (Array.isArray(roadServiceIds) && roadServiceIds.length > 0) {
+      // Verify all road service IDs exist
+      const roadServices = await RoadServiceModel.find({ _id: { $in: roadServiceIds } });
+      if (roadServices.length !== roadServiceIds.length) {
+        return res.status(400).json({ message: "One or more road service IDs are invalid!" });
       }
-      updatedData.roadServices = roadServices;
+      updatedData.roadServices = roadServiceIds;
     }
 
     const updatedCompany = await InsuranceCompany.findByIdAndUpdate(
@@ -192,10 +189,38 @@ export const deleteInsuranceCompany = async (req, res, next) => {
 
 export const getAllInsuranceCompanies = async (req, res, next) => {
   try {
-    const companies = await InsuranceCompany.find();
+    const companies = await InsuranceCompany.find()
+      .populate('insuranceTypes', 'name')
+      .populate('roadServices', 'name price');
     res.status(200).json(companies);
   } catch (error) {
 
+    next(error);
+  }
+};
+
+/**
+ * Get insurance company by ID
+ * GET /api/v1/company/:id
+ */
+export const getInsuranceCompanyById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const company = await InsuranceCompany.findById(id)
+      .populate('insuranceTypes', 'name description')
+      .populate('roadServices', 'service_name normal_price old_car_price cutoff_year description is_active');
+
+    if (!company) {
+      return res.status(404).json({ message: "Insurance company not found" });
+    }
+
+    return res.status(200).json({
+      message: "Insurance company retrieved successfully",
+      company
+    });
+
+  } catch (error) {
     next(error);
   }
 };
