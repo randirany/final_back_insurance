@@ -22,5 +22,11 @@ userRouter.post('/addEmployee/:id', auth(endPoints.addEmployee),validation(userV
 userRouter.delete('/deleteEmployee/:depId/:employeeId',auth(endPoints.deleteEmployee), userRoute.deleteEmployee)
 userRouter.get('/allEmployee/:depId' , auth(endPoints.allEmployee),userRoute.allEmployee)
 
+// Permissions endpoints
+userRouter.get('/permissions/all', userRoute.getAllPermissions)
+userRouter.get('/permissions/my-permissions', auth(endPoints.prof), userRoute.getMyPermissions)
+
+// Admin reset employee password
+userRouter.patch('/reset-employee-password/:userId', auth(endPoints.resetEmployeePassword), validation(userValid.resetEmployeePassword), userRoute.resetEmployeePassword)
 
 export default userRouter;

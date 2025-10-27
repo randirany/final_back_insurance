@@ -540,3 +540,345 @@ export const allEmployee = async (req, res, next) => {
 
   }
 };
+
+/**
+ * Get all available permissions
+ * GET /api/user/permissions/all
+ */
+export const getAllPermissions = async (req, res, next) => {
+  try {
+    // Get all available permissions from Department schema enum
+    const availablePermissions = [
+      // Accident permissions
+      { key: "addAccident", label: "Add Accident", category: "Accidents" },
+      { key: "deleteAccident", label: "Delete Accident", category: "Accidents" },
+      { key: "updateAccident", label: "Update Accident", category: "Accidents" },
+      { key: "allAccident", label: "View All Accidents", category: "Accidents" },
+      { key: "updateStatus", label: "Update Accident Status", category: "Accidents" },
+      { key: "assignAccident", label: "Assign Accident", category: "Accidents" },
+      { key: "addComment", label: "Add Accident Comment", category: "Accidents" },
+      { key: "getComments", label: "View Accident Comments", category: "Accidents" },
+
+      // Notification permissions
+      { key: "createNotification", label: "Create Notification", category: "Notifications" },
+      { key: "getNotifications", label: "View Notifications", category: "Notifications" },
+      { key: "markAsRead", label: "Mark Notification as Read", category: "Notifications" },
+      { key: "Deletenotification", label: "Delete Notification", category: "Notifications" },
+
+      // Insured (Customer) permissions
+      { key: "addInsured", label: "Add Customer", category: "Customers" },
+      { key: "deleteInsured", label: "Delete Customer", category: "Customers" },
+      { key: "updateInsured", label: "Update Customer", category: "Customers" },
+      { key: "allInsured", label: "View All Customers", category: "Customers" },
+      { key: "findbyidInsured", label: "View Customer Details", category: "Customers" },
+      { key: "searchCustomer", label: "Search Customers", category: "Customers" },
+
+      // Vehicle permissions
+      { key: "addcar", label: "Add Vehicle", category: "Vehicles" },
+      { key: "removeCar", label: "Remove Vehicle", category: "Vehicles" },
+      { key: "showVehicles", label: "View Vehicles", category: "Vehicles" },
+      { key: "updateCar", label: "Update Vehicle", category: "Vehicles" },
+
+      // Road/Service permissions
+      { key: "addService", label: "Add Service", category: "Services" },
+      { key: "updateService", label: "Update Service", category: "Services" },
+      { key: "deleteService", label: "Delete Service", category: "Services" },
+      { key: "allServices", label: "View All Services", category: "Services" },
+
+      // Agent permissions
+      { key: "addAgents", label: "Add Agent", category: "Agents" },
+      { key: "deleteAgents", label: "Delete Agent", category: "Agents" },
+      { key: "updateAgents", label: "Update Agent", category: "Agents" },
+      { key: "allAgents", label: "View All Agents", category: "Agents" },
+
+      // Insurance Company permissions
+      { key: "addCompany", label: "Add Insurance Company", category: "Insurance Companies" },
+      { key: "deleteCompany", label: "Delete Insurance Company", category: "Insurance Companies" },
+      { key: "upateCompany", label: "Update Insurance Company", category: "Insurance Companies" },
+      { key: "allCompany", label: "View All Insurance Companies", category: "Insurance Companies" },
+
+      // Department permissions
+      { key: "addDepartment", label: "Add Department", category: "Departments" },
+      { key: "deleteDepartment", label: "Delete Department", category: "Departments" },
+      { key: "updateDepartment", label: "Update Department", category: "Departments" },
+      { key: "allDepartments", label: "View All Departments", category: "Departments" },
+      { key: "DepartmentById", label: "View Department Details", category: "Departments" },
+
+      // User/Employee permissions
+      { key: "addHeadOfDepartmentToDepartmen", label: "Add Department Head", category: "User Management" },
+      { key: "deleteHeadOfDepartmentToDepartmen", label: "Delete Department Head", category: "User Management" },
+      { key: "getHeadOfDepartment", label: "View Department Head", category: "User Management" },
+      { key: "addEmployee", label: "Add Employee", category: "User Management" },
+      { key: "deleteEmployee", label: "Delete Employee", category: "User Management" },
+      { key: "updateEmployee", label: "Update Employee", category: "User Management" },
+      { key: "allEmployee", label: "View All Employees", category: "User Management" },
+
+      // Document Settings permissions
+      { key: "createDocumentSettings", label: "Create Document Settings", category: "Document Settings" },
+      { key: "getActiveDocumentSettings", label: "View Active Document Settings", category: "Document Settings" },
+      { key: "getAllDocumentSettings", label: "View All Document Settings", category: "Document Settings" },
+      { key: "getDocumentSettingsById", label: "View Document Settings Details", category: "Document Settings" },
+      { key: "updateDocumentSettings", label: "Update Document Settings", category: "Document Settings" },
+      { key: "deleteDocumentSettings", label: "Delete Document Settings", category: "Document Settings" },
+      { key: "activateDocumentSettings", label: "Activate Document Settings", category: "Document Settings" },
+
+      // Insurance Type permissions
+      { key: "addType", label: "Add Insurance Type", category: "Insurance Types" },
+      { key: "updateType", label: "Update Insurance Type", category: "Insurance Types" },
+      { key: "deleteType", label: "Delete Insurance Type", category: "Insurance Types" },
+      { key: "allTypes", label: "View All Insurance Types", category: "Insurance Types" },
+
+      // Expense permissions
+      { key: "addExpense", label: "Add Expense", category: "Financial" },
+      { key: "getExpenses", label: "View Expenses", category: "Financial" },
+      { key: "updateExpense", label: "Update Expense", category: "Financial" },
+      { key: "deleteExpense", label: "Delete Expense", category: "Financial" },
+      { key: "getNetProfit", label: "View Net Profit", category: "Financial" },
+      { key: "getCompanyFinancialReport", label: "View Financial Report", category: "Financial" },
+      { key: "cancelInsurance", label: "Cancel Insurance", category: "Financial" },
+
+      // Revenue permissions
+      { key: "transferInsurance", label: "Transfer Insurance", category: "Financial" },
+      { key: "getCustomerPaymentsReport", label: "View Customer Payments Report", category: "Financial" },
+      { key: "getCancelledInsurancesReport", label: "View Cancelled Insurances Report", category: "Financial" },
+
+      // Cheque permissions
+      { key: "addCheque", label: "Add Cheque", category: "Cheques" },
+      { key: "addChequeToInsurance", label: "Add Cheque to Insurance", category: "Cheques" },
+      { key: "getAllCheques", label: "View All Cheques", category: "Cheques" },
+      { key: "getChequeStatistics", label: "View Cheque Statistics", category: "Cheques" },
+      { key: "getChequeById", label: "View Cheque Details", category: "Cheques" },
+      { key: "getCustomerCheques", label: "View Customer Cheques", category: "Cheques" },
+      { key: "updateChequeStatus", label: "Update Cheque Status", category: "Cheques" },
+      { key: "deleteCheque", label: "Delete Cheque", category: "Cheques" },
+
+      // Audit Log permissions
+      { key: "viewAuditLogs", label: "View Audit Logs", category: "System" },
+
+      // Payment permissions
+      { key: "createPayment", label: "Create Payment", category: "Payments" },
+      { key: "verifyTransaction", label: "Verify Transaction", category: "Payments" },
+      { key: "voidTransaction", label: "Void Transaction", category: "Payments" },
+      { key: "validateCard", label: "Validate Card", category: "Payments" }
+    ];
+
+    // Group permissions by category
+    const groupedPermissions = availablePermissions.reduce((acc, permission) => {
+      const category = permission.category;
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push({
+        key: permission.key,
+        label: permission.label
+      });
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      success: true,
+      message: "All available permissions retrieved successfully",
+      data: {
+        permissions: availablePermissions,
+        groupedPermissions: groupedPermissions,
+        categories: Object.keys(groupedPermissions)
+      }
+    });
+
+  } catch (error) {
+    console.error("Error getting permissions:", error);
+    next(error);
+  }
+};
+
+/**
+ * Get current user's permissions
+ * GET /api/user/permissions/my-permissions
+ */
+export const getMyPermissions = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // Get user with department
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Admin has all permissions
+    if (user.role === 'admin') {
+      const allPermissions = [
+        // Accident permissions
+        "addAccident", "deleteAccident", "updateAccident", "allAccident",
+        "updateStatus", "assignAccident", "addComment", "getComments",
+        // Notification permissions
+        "createNotification", "getNotifications", "markAsRead", "Deletenotification",
+        // Insured (Customer) permissions
+        "addInsured", "deleteInsured", "updateInsured", "allInsured", "findbyidInsured", "searchCustomer",
+        // Vehicle permissions
+        "addcar", "removeCar", "showVehicles", "updateCar",
+        // Road/Service permissions
+        "addService", "updateService", "deleteService", "allServices",
+        // Agent permissions
+        "addAgents", "deleteAgents", "updateAgents", "allAgents",
+        // Insurance Company permissions
+        "addCompany", "deleteCompany", "upateCompany", "allCompany",
+        // Department permissions
+        "addDepartment", "deleteDepartment", "updateDepartment", "allDepartments", "DepartmentById",
+        // User/Employee permissions
+        "addHeadOfDepartmentToDepartmen", "deleteHeadOfDepartmentToDepartmen", "getHeadOfDepartment",
+        "addEmployee", "deleteEmployee", "updateEmployee", "allEmployee",
+        // Document Settings permissions
+        "createDocumentSettings", "getActiveDocumentSettings", "getAllDocumentSettings",
+        "getDocumentSettingsById", "updateDocumentSettings", "deleteDocumentSettings", "activateDocumentSettings",
+        // Insurance Type permissions
+        "addType", "updateType", "deleteType", "allTypes",
+        // Expense permissions
+        "addExpense", "getExpenses", "updateExpense", "deleteExpense",
+        "getNetProfit", "getCompanyFinancialReport", "cancelInsurance",
+        // Revenue permissions
+        "transferInsurance", "getCustomerPaymentsReport", "getCancelledInsurancesReport",
+        // Cheque permissions
+        "addCheque", "addChequeToInsurance", "getAllCheques", "getChequeStatistics",
+        "getChequeById", "getCustomerCheques", "updateChequeStatus", "deleteCheque",
+        // Audit Log permissions
+        "viewAuditLogs",
+        // Payment permissions
+        "createPayment", "verifyTransaction", "voidTransaction", "validateCard"
+      ];
+
+      return res.status(200).json({
+        success: true,
+        message: "User permissions retrieved successfully",
+        data: {
+          userId: user._id,
+          userName: user.name,
+          role: user.role,
+          isAdmin: true,
+          permissions: allPermissions,
+          departmentId: null,
+          departmentName: null
+        }
+      });
+    }
+
+    // For employees and head of employees, get department permissions
+    if (!user.departmentId) {
+      return res.status(200).json({
+        success: true,
+        message: "User has no department assigned",
+        data: {
+          userId: user._id,
+          userName: user.name,
+          role: user.role,
+          isAdmin: false,
+          permissions: [],
+          departmentId: null,
+          departmentName: null
+        }
+      });
+    }
+
+    const department = await DepartmentModel.findById(user.departmentId);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: "Department not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User permissions retrieved successfully",
+      data: {
+        userId: user._id,
+        userName: user.name,
+        role: user.role,
+        isAdmin: false,
+        permissions: department.permissions || [],
+        departmentId: department._id,
+        departmentName: department.name
+      }
+    });
+
+  } catch (error) {
+    console.error("Error getting user permissions:", error);
+    next(error);
+  }
+};
+
+/**
+ * Reset employee password by admin
+ * PATCH /api/v1/user/reset-employee-password/:userId
+ */
+export const resetEmployeePassword = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    // Validate user ID
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
+      });
+    }
+
+    // Find the user to reset password for
+    const targetUser = await userModel.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Prevent admins from resetting other admin passwords
+    if (targetUser.role === 'admin' && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot reset an admin's password"
+      });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.saltRound));
+
+    // Store old password hash for audit log
+    const oldPasswordHash = targetUser.password;
+
+    // Update the password
+    targetUser.password = hashedPassword;
+    await targetUser.save();
+
+    // Log the action
+    const adminUser = await userModel.findById(req.user._id);
+    await logAudit({
+      userId: req.user._id,
+      action: `Reset password for user ${targetUser.name}`,
+      userName: adminUser.name,
+      entity: "User",
+      entityId: targetUser._id,
+      oldValue: { passwordChanged: true },
+      newValue: { passwordReset: true, resetBy: adminUser.name }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Password reset successfully for ${targetUser.name}`,
+      data: {
+        userId: targetUser._id,
+        userName: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role
+      }
+    });
+
+  } catch (error) {
+    console.error("Error resetting employee password:", error);
+    next(error);
+  }
+};

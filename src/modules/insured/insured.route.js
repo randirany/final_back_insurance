@@ -13,8 +13,9 @@ const insuredRouter=Router();
 insuredRouter.post('/addInsured',auth(endPoints.addInsured), myMulter(fileValidation.imag).single('image'), validateRequest(validation.addInsuredSchema), insuredRoute.addInsured )
 insuredRouter.delete('/deleteInsured/:id', auth(endPoints.deleteInsured),insuredRoute.deleteInsured)
 insuredRouter.get('/allInsured',auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), validateRequest(validation.paginationQuerySchema, 'query'), insuredRoute.showAll)
-insuredRouter.get("/insurances/all",auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), validateRequest(validation.paginationQuerySchema, 'query'), insuredRoute.getAllVehicleInsurances);
+insuredRouter.get("/insurances/all",auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), validateRequest(validation.vehicleInsurancesFilterSchema, 'query'), insuredRoute.getAllVehicleInsurances);
 insuredRouter.get('/findInsured/:id',auth(endPoints.findbyidInsured),insuredRoute.showById)
+insuredRouter.get('/searchCustomer',auth(endPoints.searchCustomer), validateRequest(validation.searchCustomerQuerySchema, 'query'), insuredRoute.searchCustomer)
 insuredRouter.patch('/updateInsured/:id',auth(endPoints.updateInsured), myMulter(fileValidation.imag).single('image'), validateRequest(validation.updateInsuredSchema), insuredRoute.updateInsured)
 insuredRouter.post('/addCar/:insuredId', auth(endPoints.addcar),myMulter(fileValidation.imag).single('image'), validateRequest(validation.addVehicleSchema), insuredRoute.addVehicle)
 insuredRouter.post( "/customers/:id/upload", uploadLimiter, myMulter(fileValidation.all).array('files'),insuredRoute.uploadCustomerFiles)
@@ -46,8 +47,15 @@ insuredRouter.get('/getOutstandingDebtsReport', cacheMiddleware(300, reportCache
 insuredRouter.get('/vehicle-data/:plateNumber', externalApiLimiter, auth(endPoints.showVehicles), insuredRoute.getVehicleDataFromGovApi)
 insuredRouter.get('/dashboard-statistics', cacheMiddleware(600), insuredRoute.getDashboardStatistics)
 insuredRouter.get('/financial-overview', cacheMiddleware(600), insuredRoute.getFinancialOverview)
+insuredRouter.get('/customers-with-active-insurance', auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), insuredRoute.getCustomersWithActiveInsurance)
 
+// Add payment to existing insurance
+insuredRouter.post('/addPayment/:insuredId/:vehicleId/:insuranceId', auth(endPoints.addcar), validateRequest(validation.addPaymentSchema), insuredRoute.addPaymentToInsurance)
 
+// Get all payments with filters
+insuredRouter.get('/payments/all', auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), insuredRoute.getAllPayments)
 
+// Get due insurances and cheques
+insuredRouter.get('/due-items/all', auth(endPoints.allInsured), cacheMiddleware(300, paginationCacheKey), insuredRoute.getDueItems)
 
 export default insuredRouter;

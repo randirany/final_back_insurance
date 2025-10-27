@@ -5,6 +5,9 @@ import { InsuranceTypeModel } from "../../../../DB/models/InsuranceType.model.js
 import { ExpenseModel } from "../../../../DB/models/Expense.model.js";
 import { RevenueModel } from "../../../../DB/models/Revenue.model.js";
 import { accidentModel } from "../../../../DB/models/Accident.model.js";
+import AgentTransactionModel from "../../../../DB/models/AgentTransaction.model.js";
+import ChequeModel from "../../../../DB/models/Cheque.model.js";
+import DocumentSettings from "../../../../DB/models/DocumentSettings.model.js";
 
 import mongoose from "mongoose";
 import {
@@ -57,16 +60,9 @@ export const addInsured = async (req, res, next) => {
     birth_date,
   } = req.body;
 
-  // Start a database session for transaction
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-
-    const findInsured = await insuredModel.findOne({ id_Number }).session(session);
+    const findInsured = await insuredModel.findOne({ id_Number });
     if (findInsured) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(409).json({ message: "Insured already exists" });
     }
     let imageUrl = null;
@@ -102,7 +98,7 @@ export const addInsured = async (req, res, next) => {
 
     let agent = null;
     if (agentsName) {
-      agent = await userModel.findOne({ name: agentsName }).session(session);
+      agent = await userModel.findOne({ name: agentsName });
     }
 
     const newInsured = new insuredModel({
@@ -121,7 +117,7 @@ export const addInsured = async (req, res, next) => {
       birth_date,
     });
 
-    const savedInsured = await newInsured.save({ session });
+    const savedInsured = await newInsured.save();
     const findUser = await userModel.findById(req.user._id);
     const message = `${findUser.name} added new insured: ${first_name} ${last_name}`;
     await sendNotificationLogic({
@@ -139,10 +135,6 @@ export const addInsured = async (req, res, next) => {
       newValue: savedInsured.toObject(),
     });
 
-    // Commit transaction
-    await session.commitTransaction();
-    session.endSession();
-
     // Invalidate caches
     invalidateAllRelatedCaches().catch(err => logger.error("Cache invalidation failed:", err));
 
@@ -150,9 +142,6 @@ export const addInsured = async (req, res, next) => {
       .status(201)
       .json({ message: "Added successfully", savedInsured });
   } catch (error) {
-    // Rollback transaction on error
-    await session.abortTransaction();
-    session.endSession();
     logger.error("Error adding insured:", error);
     next(error);
   }
@@ -207,13 +196,72 @@ export const getTotalInsured = async (req, res, next) => {
   }
 };
 
+/**
+ * Get All Vehicle Insurances with Filters
+ * @query {string} startDate - Filter by insurance start date from (optional)
+ * @query {string} endDate - Filter by insurance end date to (optional)
+ * @query {string} agent - Filter by agent name (optional)
+ * @query {string} insuranceCompany - Filter by insurance company (optional)
+ * @query {string} insuranceType - Filter by insurance type (optional)
+ * @query {string} status - Filter by status: 'active', 'expired', or 'all' (default: 'all')
+ * @query {number} page - Page number for pagination (optional)
+ * @query {number} limit - Number of items per page (optional)
+ */
 export const getAllVehicleInsurances = async (req, res, next) => {
   try {
+    const {
+      startDate,
+      endDate,
+      agent,
+      insuranceCompany,
+      insuranceType,
+      status = 'all'
+    } = req.query;
     const { page, limit, skip } = getPaginationParams(req.query);
+
+    // Build match conditions
+    const matchConditions = {};
+
+    // Date range filter (for insurance start date)
+    if (startDate || endDate) {
+      matchConditions["vehicles.insurance.insuranceStartDate"] = {};
+      if (startDate) {
+        matchConditions["vehicles.insurance.insuranceStartDate"].$gte = new Date(startDate);
+      }
+      if (endDate) {
+        matchConditions["vehicles.insurance.insuranceStartDate"].$lte = new Date(endDate);
+      }
+    }
+
+    // Agent filter
+    if (agent) {
+      matchConditions["vehicles.insurance.agent"] = agent;
+    }
+
+    // Insurance company filter
+    if (insuranceCompany) {
+      matchConditions["vehicles.insurance.insuranceCompany"] = insuranceCompany;
+    }
+
+    // Insurance type filter
+    if (insuranceType) {
+      matchConditions["vehicles.insurance.insuranceType"] = insuranceType;
+    }
+
+    // Status filter (active/expired)
+    if (status && status !== 'all') {
+      const now = new Date();
+      if (status === 'active') {
+        matchConditions["vehicles.insurance.insuranceEndDate"] = { $gte: now };
+      } else if (status === 'expired') {
+        matchConditions["vehicles.insurance.insuranceEndDate"] = { $lt: now };
+      }
+    }
 
     const pipeline = [
       { $unwind: "$vehicles" },
       { $unwind: "$vehicles.insurance" },
+      ...(Object.keys(matchConditions).length > 0 ? [{ $match: matchConditions }] : []),
       {
         $project: {
           _id: "$vehicles.insurance._id",
@@ -228,15 +276,26 @@ export const getAllVehicleInsurances = async (req, res, next) => {
           insuranceAmount: "$vehicles.insurance.insuranceAmount",
           paidAmount: "$vehicles.insurance.paidAmount",
           remainingDebt: "$vehicles.insurance.remainingDebt",
+          insuranceStatus: "$vehicles.insurance.insuranceStatus",
           insuranceFiles: "$vehicles.insurance.insuranceFiles",
           checkDetails: "$vehicles.insurance.checkDetails",
           insuredId: "$_id",
           insuredName: { $concat: ["$first_name", " ", "$last_name"] },
           insuredIdNumber: "$id_Number",
+          insuredPhone: "$phone_number",
           vehicleId: "$vehicles._id",
           plateNumber: "$vehicles.plateNumber",
           vehicleModel: "$vehicles.model",
           vehicleType: "$vehicles.type",
+          vehicleOwnership: "$vehicles.ownership",
+          // Calculate if insurance is active or expired
+          isActive: {
+            $cond: {
+              if: { $gte: ["$vehicles.insurance.insuranceEndDate", new Date()] },
+              then: true,
+              else: false
+            }
+          }
         },
       },
       { $sort: { insuranceEndDate: 1 } },
@@ -250,8 +309,28 @@ export const getAllVehicleInsurances = async (req, res, next) => {
     const total = countResult.length > 0 ? countResult[0].total : 0;
     const response = buildPaginatedResponse(allInsurances, total, page, limit);
 
+    // Calculate summary statistics
+    const summary = {
+      totalInsurances: total,
+      activeInsurances: allInsurances.filter(ins => ins.isActive).length,
+      expiredInsurances: allInsurances.filter(ins => !ins.isActive).length,
+      totalInsuranceAmount: allInsurances.reduce((sum, ins) => sum + (ins.insuranceAmount || 0), 0),
+      totalPaidAmount: allInsurances.reduce((sum, ins) => sum + (ins.paidAmount || 0), 0),
+      totalRemainingDebt: allInsurances.reduce((sum, ins) => sum + (ins.remainingDebt || 0), 0),
+    };
+
     return res.status(200).json({
-      message: "Successfully",
+      message: "Vehicle insurances retrieved successfully",
+      timestamp: new Date().toISOString(),
+      filters: {
+        startDate: startDate || null,
+        endDate: endDate || null,
+        agent: agent || null,
+        insuranceCompany: insuranceCompany || null,
+        insuranceType: insuranceType || null,
+        status: status || 'all'
+      },
+      summary,
       ...response,
       insurances: response.data
     });
@@ -289,6 +368,200 @@ export const showById = async (req, res, next) => {
 
     return res.status(200).json({ message: "Found Insured", insured });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Search Customer by a single search key that matches Phone Number, Identity Number, or Vehicle Plate Number
+ * @query {string} searchKey - Search value to match against phone number, identity number, or plate number
+ */
+export const searchCustomer = async (req, res, next) => {
+  try {
+    const { searchKey } = req.query;
+
+    // Ensure search key is provided
+    if (!searchKey || !searchKey.trim()) {
+      return res.status(400).json({
+        message: "Search key is required"
+      });
+    }
+
+    const trimmedSearchKey = searchKey.trim();
+    let customer = null;
+    let searchedBy = null;
+    let matchingVehicles = null;
+
+    // Debug: Log search key details
+    logger.info(`Searching for customer with key: "${trimmedSearchKey}", length: ${trimmedSearchKey.length}, type: ${typeof trimmedSearchKey}`);
+
+    // Search by identity number (with type conversion)
+    // Note: Schema defines id_Number as String, but DB has Numbers stored
+    // Use aggregation to bypass Mongoose schema type conversion
+    const idSearchAsNumber = !isNaN(trimmedSearchKey) ? Number(trimmedSearchKey) : null;
+
+    // Use aggregation to search both string and number types
+    const idResults = await insuredModel.aggregate([
+      {
+        $match: {
+          $or: [
+            { id_Number: trimmedSearchKey },
+            { id_Number: String(trimmedSearchKey) },
+            ...(idSearchAsNumber !== null ? [{ id_Number: idSearchAsNumber }] : [])
+          ]
+        }
+      },
+      { $limit: 1 }
+    ]);
+
+    customer = idResults.length > 0 ? idResults[0] : null;
+
+    logger.info(`ID Search result for "${trimmedSearchKey}": ${customer ? 'FOUND' : 'NOT FOUND'}`);
+
+    // Debug log
+    if (customer) {
+      logger.info(`Found customer by id_Number. Customer id_Number: "${customer.id_Number}", type: ${typeof customer.id_Number}`);
+    }
+
+    if (customer) {
+      searchedBy = "id_Number";
+      return res.status(200).json({
+        message: "Customer found by identity number",
+        customer,
+        searchedBy,
+        searchKey: trimmedSearchKey
+      });
+    }
+
+    // Search by phone number (with type conversion)
+    const phoneSearchAsNumber = !isNaN(trimmedSearchKey) ? Number(trimmedSearchKey) : null;
+
+    // Use aggregation to search both string and number types
+    const phoneResults = await insuredModel.aggregate([
+      {
+        $match: {
+          $or: [
+            { phone_number: trimmedSearchKey },
+            { phone_number: String(trimmedSearchKey) },
+            ...(phoneSearchAsNumber !== null ? [{ phone_number: phoneSearchAsNumber }] : [])
+          ]
+        }
+      },
+      { $limit: 1 }
+    ]);
+
+    customer = phoneResults.length > 0 ? phoneResults[0] : null;
+
+    if (customer) {
+      logger.info(`Found customer by phone_number. Customer phone: "${customer.phone_number}", type: ${typeof customer.phone_number}`);
+      searchedBy = "phone_number";
+      return res.status(200).json({
+        message: "Customer found by phone number",
+        customer,
+        searchedBy,
+        searchKey: trimmedSearchKey
+      });
+    }
+
+    // Search by vehicle plate number (with type conversion - exact match)
+    const searchAsNumber = !isNaN(trimmedSearchKey) ? Number(trimmedSearchKey) : null;
+
+    // Use aggregation to search both string and number types
+    const plateResults = await insuredModel.aggregate([
+      {
+        $match: {
+          $or: [
+            { "vehicles.plateNumber": trimmedSearchKey },
+            { "vehicles.plateNumber": String(trimmedSearchKey) },
+            ...(searchAsNumber !== null ? [{ "vehicles.plateNumber": searchAsNumber }] : [])
+          ]
+        }
+      },
+      { $limit: 1 }
+    ]);
+
+    customer = plateResults.length > 0 ? plateResults[0] : null;
+
+    if (customer) {
+      logger.info(`Found customer by plateNumber (exact match).`);
+      searchedBy = "plateNumber";
+      // Filter to show only the matching vehicle(s)
+      matchingVehicles = customer.vehicles.filter(
+        v => v.plateNumber && String(v.plateNumber) === String(trimmedSearchKey)
+      );
+
+      return res.status(200).json({
+        message: "Customer found by vehicle plate number",
+        customer,
+        matchingVehicles,
+        searchedBy,
+        searchKey: trimmedSearchKey
+      });
+    }
+
+    // If no exact match, try partial match on plate number (contains)
+    // For numeric searches, we also check if the plate number (as string) contains the search key
+    const plateNumberAsNumber = !isNaN(trimmedSearchKey) ? Number(trimmedSearchKey) : null;
+
+    // Find customers where any vehicle's plate number contains the search key
+    const allCustomers = await insuredModel.find({
+      'vehicles.0': { $exists: true }
+    }).lean();
+
+    customer = allCustomers.find(c => {
+      return c.vehicles && c.vehicles.some(v => {
+        const plateStr = String(v.plateNumber);
+        return plateStr.includes(trimmedSearchKey);
+      });
+    });
+
+    if (customer) {
+      logger.info(`Found customer by plateNumber (partial match).`);
+      searchedBy = "plateNumber_partial";
+      // Filter to show only the matching vehicle(s)
+      matchingVehicles = customer.vehicles.filter(
+        v => {
+          const plateStr = String(v.plateNumber);
+          return plateStr.includes(trimmedSearchKey);
+        }
+      );
+
+      return res.status(200).json({
+        message: "Customer found by vehicle plate number (partial match)",
+        customer,
+        matchingVehicles,
+        searchedBy,
+        searchKey: trimmedSearchKey
+      });
+    }
+
+    // Debug: Sample some customers to see their data structure
+    const sampleCustomers = await insuredModel.find({ 'vehicles.0': { $exists: true } }).limit(5).select('id_Number phone_number first_name last_name vehicles.plateNumber').lean();
+    logger.info(`Sample customers in DB:`, JSON.stringify(sampleCustomers, null, 2));
+
+    // No customer found
+    return res.status(404).json({
+      message: "No customer found with the provided search key",
+      searchKey: trimmedSearchKey,
+      debug: {
+        searchKeyLength: trimmedSearchKey.length,
+        searchKeyType: typeof trimmedSearchKey,
+        sampleCustomers: sampleCustomers.map(c => ({
+          name: `${c.first_name} ${c.last_name}`,
+          id_Number: c.id_Number,
+          id_Number_type: typeof c.id_Number,
+          phone_number: c.phone_number,
+          phone_number_type: typeof c.phone_number,
+          vehicles: c.vehicles ? c.vehicles.map(v => ({
+            plateNumber: v.plateNumber,
+            plateNumber_type: typeof v.plateNumber
+          })) : []
+        }))
+      }
+    });
+
+  } catch (error) {
+    logger.error("Error searching for customer:", error);
     next(error);
   }
 };
@@ -866,11 +1139,17 @@ export const addInsuranceToVehicle = async (req, res, next) => {
     insuranceType,
     insuranceCompany,
     agent,
+    agentId,
+    agentFlow,
+    agentAmount,
     paymentMethod,
     paidAmount,
     isUnder24,
     priceisOnTheCustomer,
     insuranceAmount,
+    payments,
+    insuranceStartDate,
+    insuranceEndDate,
   } = req.body;
 
   try {
@@ -918,13 +1197,18 @@ export const addInsuranceToVehicle = async (req, res, next) => {
         });
     }
 
-    let insuranceStartDate =
+    // Use provided dates or calculate defaults
+    let calculatedStartDate =
       vehicle.insurance.length > 0
         ? vehicle.insurance[vehicle.insurance.length - 1].insuranceEndDate
         : new Date();
 
-    const insuranceEndDate = new Date(insuranceStartDate);
-    insuranceEndDate.setFullYear(insuranceEndDate.getFullYear() + 1);
+    const finalStartDate = insuranceStartDate ? new Date(insuranceStartDate) : calculatedStartDate;
+
+    let calculatedEndDate = new Date(finalStartDate);
+    calculatedEndDate.setFullYear(calculatedEndDate.getFullYear() + 1);
+
+    const finalEndDate = insuranceEndDate ? new Date(insuranceEndDate) : calculatedEndDate;
 
     let insuranceFilesUrls = [];
     if (req.files && req.files.length > 0) {
@@ -936,24 +1220,121 @@ export const addInsuranceToVehicle = async (req, res, next) => {
       }
     }
 
+    // Process payments array and create cheque records if needed
+    const processedPayments = [];
+    const chequeIds = [];
+
+    if (payments && Array.isArray(payments) && payments.length > 0) {
+      for (const payment of payments) {
+        // Auto-generate receipt number if not provided
+        let receiptNum = payment.receiptNumber;
+        if (!receiptNum || receiptNum.trim() === '') {
+          const timestamp = Date.now();
+          const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+          receiptNum = `REC-${timestamp}-${random}`;
+        }
+
+        const paymentRecord = {
+          amount: payment.amount,
+          paymentMethod: payment.paymentMethod,
+          paymentDate: payment.paymentDate ? new Date(payment.paymentDate) : new Date(),
+          notes: payment.notes || '',
+          receiptNumber: receiptNum,
+          recordedBy: req.user._id
+        };
+
+        // If payment is by cheque, create a Cheque document
+        if (payment.paymentMethod === 'cheque' && payment.chequeNumber) {
+          const chequeDoc = await ChequeModel.create({
+            chequeNumber: payment.chequeNumber,
+            customer: {
+              insuredId: insuredId,
+              name: `${insured.first_name} ${insured.last_name}`,
+              idNumber: insured.id_Number,
+              phoneNumber: insured.phone_number
+            },
+            chequeDate: payment.chequeDate ? new Date(payment.chequeDate) : new Date(),
+            amount: payment.amount,
+            status: payment.chequeStatus || 'pending',
+            insuranceId: null, // Will be set after insurance is created
+            vehicleId: vehicleId,
+            notes: payment.notes || '',
+            createdBy: req.user._id
+          });
+
+          paymentRecord.chequeId = chequeDoc._id;
+          chequeIds.push(chequeDoc._id);
+        }
+
+        processedPayments.push(paymentRecord);
+      }
+    }
+
     const newInsurance = {
-      insuranceStartDate,
-      insuranceEndDate,
+      insuranceStartDate: finalStartDate,
+      insuranceEndDate: finalEndDate,
       isUnder24,
       insuranceCategory: "vehicle_insurance",
       insuranceType,
       insuranceCompany,
       agent,
-      paymentMethod,
+      agentId,
+      agentFlow: agentFlow || 'none',
+      agentAmount: agentAmount || 0,
       insuranceAmount,
-      paidAmount: paidAmount || 0,
+      payments: processedPayments,
       insuranceFiles: insuranceFilesUrls,
       priceisOnTheCustomer,
+      cheques: chequeIds
     };
 
     vehicle.insurance.push(newInsurance);
 
     await insured.save({ validateBeforeSave: false });
+
+    // Get the newly created insurance ID from the saved document
+    const savedVehicle = insured.vehicles.id(vehicleId);
+    const savedInsurance = savedVehicle.insurance[savedVehicle.insurance.length - 1];
+    const insuranceId = savedInsurance._id;
+
+    // Create Revenue records for each payment
+    if (processedPayments.length > 0) {
+      for (const payment of processedPayments) {
+        await RevenueModel.create({
+          title: `Insurance Payment - ${insuranceType}`,
+          amount: payment.amount,
+          receivedFrom: `${insured.first_name} ${insured.last_name}`,
+          paymentMethod: payment.paymentMethod === 'cheque' ? 'check' : payment.paymentMethod,
+          date: payment.paymentDate,
+          description: payment.notes || `${payment.paymentMethod} payment for ${insuranceCompany} insurance (${insuranceType})`,
+          fromVehiclePlate: savedVehicle.plateNumber
+        });
+      }
+    }
+
+    // Handle agent transactions if agentFlow is specified
+    if (agentFlow && agentFlow !== 'none' && agentAmount > 0) {
+      const transactionType = agentFlow === 'from_agent' ? 'credit' : 'debit';
+      const description = agentFlow === 'from_agent'
+        ? `Commission for insurance ${insuranceId}`
+        : `Payment received from agent for insurance ${insuranceId}`;
+
+      await AgentTransactionModel.create({
+        agentName: agent,
+        agentId: agentId,
+        transactionType: transactionType,
+        amount: agentAmount,
+        description: description,
+        insuranceCompany: insuranceCompany,
+        customer: insuredId,
+        vehicle: vehicleId,
+        insurance: insuranceId,
+        recordedBy: req.user._id
+      });
+    }
+
+    // Invalidate related caches
+    await invalidateAllRelatedCaches();
 
     const findUser = await userModel.findById(req.user._id);
 
@@ -983,6 +1364,7 @@ export const addInsuranceToVehicle = async (req, res, next) => {
 
 export const getInsurancesForVehicle = async (req, res, next) => {
   const { insuredId, vehicleId } = req.params;
+  const { status } = req.query; // optional: 'all', 'paid', 'unpaid'
 
   try {
     const insured = await insuredModel.findById(insuredId);
@@ -995,9 +1377,43 @@ export const getInsurancesForVehicle = async (req, res, next) => {
       return res.status(404).json({ message: "Vehicle not found" });
     }
 
-    const insurances = vehicle.insurance;
+    let insurances = vehicle.insurance;
 
-    res.status(200).json({ insurances });
+    // Filter by payment status if requested
+    if (status === 'unpaid') {
+      insurances = insurances.filter(ins => ins.remainingDebt > 0);
+    } else if (status === 'paid') {
+      insurances = insurances.filter(ins => ins.remainingDebt === 0);
+    }
+
+    // Calculate summary
+    const summary = {
+      total: insurances.length,
+      totalAmount: insurances.reduce((sum, ins) => sum + ins.insuranceAmount, 0),
+      totalPaid: insurances.reduce((sum, ins) => sum + ins.paidAmount, 0),
+      totalRemaining: insurances.reduce((sum, ins) => sum + ins.remainingDebt, 0),
+      fullyPaid: insurances.filter(ins => ins.remainingDebt === 0).length,
+      partiallyPaid: insurances.filter(ins => ins.remainingDebt > 0 && ins.paidAmount > 0).length,
+      unpaid: insurances.filter(ins => ins.paidAmount === 0).length
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Insurances retrieved successfully",
+      vehicle: {
+        _id: vehicle._id,
+        plateNumber: vehicle.plateNumber,
+        model: vehicle.model,
+        type: vehicle.type
+      },
+      customer: {
+        _id: insured._id,
+        name: `${insured.first_name} ${insured.last_name}`,
+        phone: insured.phone_number
+      },
+      summary,
+      insurances
+    });
   } catch (error) {
     logger.error("Error retrieving insurances:", error);
     next(error);
@@ -1789,33 +2205,28 @@ export const getDashboardStatistics = async (req, res, next) => {
       ]),
 
       // 10. Total Cheques and Cheque Income
-      insuredModel.aggregate([
-        { $unwind: "$vehicles" },
-        { $unwind: "$vehicles.insurance" },
-        { $unwind: "$vehicles.insurance.checkDetails" },
+      ChequeModel.aggregate([
         {
           $group: {
             _id: null,
             totalCheques: { $sum: 1 },
-            totalChequeIncome: { $sum: "$vehicles.insurance.checkDetails.checkAmount" }
+            totalChequeIncome: { $sum: "$amount" }
           }
         }
       ]),
 
-      // 11. Returned Cheques Amount
-      insuredModel.aggregate([
-        { $unwind: "$vehicles" },
-        { $unwind: "$vehicles.insurance" },
-        { $unwind: "$vehicles.insurance.checkDetails" },
+      // 11. Returned Cheques Count and Amount
+      ChequeModel.aggregate([
         {
           $match: {
-            "vehicles.insurance.checkDetails.isReturned": true
+            status: "returned"
           }
         },
         {
           $group: {
             _id: null,
-            totalReturnedCheques: { $sum: "$vehicles.insurance.checkDetails.checkAmount" }
+            returnedChequesCount: { $sum: 1 },
+            totalReturnedCheques: { $sum: "$amount" }
           }
         }
       ]),
@@ -1859,6 +2270,7 @@ export const getDashboardStatistics = async (req, res, next) => {
     const totalRevenueAmount = totalRevenue.length > 0 ? totalRevenue[0].totalAmount : 0;
     const totalChequesCount = totalCheques.length > 0 ? totalCheques[0].totalCheques : 0;
     const totalChequeIncomeAmount = totalCheques.length > 0 ? totalCheques[0].totalChequeIncome : 0;
+    const returnedChequesCount = returnedCheques.length > 0 ? returnedCheques[0].returnedChequesCount : 0;
     const returnedChequesAmount = returnedCheques.length > 0 ? returnedCheques[0].totalReturnedCheques : 0;
 
     // Calculate total profit (income - expenses)
@@ -1899,6 +2311,7 @@ export const getDashboardStatistics = async (req, res, next) => {
       cheques: {
         totalCheques: totalChequesCount,
         totalChequeIncome: totalChequeIncomeAmount,
+        returnedChequesCount,
         returnedChequesAmount,
       },
       accidents: {
@@ -2048,6 +2461,1137 @@ export const getAllCheques = async (req, res, next) => {
 
   } catch (error) {
     logger.error("Error fetching all cheques:", error);
+    next(error);
+  }
+};
+
+/**
+ * Get all customers with active vehicle insurance
+ * GET /api/v1/insured/customers-with-active-insurance
+ * Returns customers who have at least one vehicle with active insurance
+ * Includes full vehicle list with insurance details
+ */
+export const getCustomersWithActiveInsurance = async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 50,
+      insuranceCompany,
+      insuranceType,
+      agentName,
+      city,
+      search
+    } = req.query;
+
+    const { skip, limit: parsedLimit } = getPaginationParams(page, limit);
+
+    // Build aggregation pipeline
+    const pipeline = [];
+
+    // Match stage - filter based on query parameters
+    const matchStage = {};
+
+    if (city) {
+      matchStage.city = city;
+    }
+
+    if (agentName) {
+      matchStage.agentsName = agentName;
+    }
+
+    // Search by name, ID, phone, or email
+    if (search) {
+      matchStage.$or = [
+        { first_name: { $regex: search, $options: 'i' } },
+        { last_name: { $regex: search, $options: 'i' } },
+        { id_Number: { $regex: search, $options: 'i' } },
+        { phone_number: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // Unwind vehicles to check for active insurance
+    pipeline.push({ $unwind: { path: "$vehicles", preserveNullAndEmptyArrays: false } });
+    pipeline.push({ $unwind: { path: "$vehicles.insurance", preserveNullAndEmptyArrays: false } });
+
+    // Filter for active insurance only
+    const insuranceMatch = {
+      "vehicles.insurance.insuranceStatus": "active",
+      "vehicles.insurance.insuranceEndDate": { $gte: new Date() }
+    };
+
+    if (insuranceCompany) {
+      insuranceMatch["vehicles.insurance.insuranceCompany"] = insuranceCompany;
+    }
+
+    if (insuranceType) {
+      insuranceMatch["vehicles.insurance.insuranceType"] = insuranceType;
+    }
+
+    pipeline.push({ $match: insuranceMatch });
+
+    // Group back to reconstruct customer data with only active insurances
+    pipeline.push({
+      $group: {
+        _id: "$_id",
+        customer: { $first: "$$ROOT" },
+        vehicles: {
+          $push: {
+            _id: "$vehicles._id",
+            plateNumber: "$vehicles.plateNumber",
+            model: "$vehicles.model",
+            type: "$vehicles.type",
+            ownership: "$vehicles.ownership",
+            modelNumber: "$vehicles.modelNumber",
+            licenseExpiry: "$vehicles.licenseExpiry",
+            lastTest: "$vehicles.lastTest",
+            color: "$vehicles.color",
+            price: "$vehicles.price",
+            image: "$vehicles.image",
+            insurance: "$vehicles.insurance"
+          }
+        },
+        activeInsurancesCount: { $sum: 1 },
+        totalInsuranceValue: { $sum: "$vehicles.insurance.insuranceAmount" },
+        totalPaidAmount: { $sum: "$vehicles.insurance.paidAmount" },
+        totalRemainingDebt: { $sum: "$vehicles.insurance.remainingDebt" }
+      }
+    });
+
+    // Project final structure
+    pipeline.push({
+      $project: {
+        _id: 1,
+        first_name: "$customer.first_name",
+        last_name: "$customer.last_name",
+        id_Number: "$customer.id_Number",
+        phone_number: "$customer.phone_number",
+        email: "$customer.email",
+        city: "$customer.city",
+        birth_date: "$customer.birth_date",
+        joining_date: "$customer.joining_date",
+        agentsName: "$customer.agentsName",
+        agentsId: "$customer.agentsId",
+        image: "$customer.image",
+        notes: "$customer.notes",
+        vehicles: 1,
+        activeInsurancesCount: 1,
+        totalInsuranceValue: 1,
+        totalPaidAmount: 1,
+        totalRemainingDebt: 1
+      }
+    });
+
+    // Sort by joining date (newest first)
+    pipeline.push({ $sort: { joining_date: -1 } });
+
+    // Execute aggregation with pagination
+    const [customers, countResult] = await Promise.all([
+      insuredModel.aggregate([...pipeline, { $skip: skip }, { $limit: parsedLimit }]),
+      insuredModel.aggregate([...pipeline, { $count: "total" }])
+    ]);
+
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+
+    // Calculate summary statistics
+    const allCustomers = await insuredModel.aggregate([
+      ...pipeline.slice(0, -1) // All except pagination
+    ]);
+
+    const summary = {
+      totalCustomers: allCustomers.length,
+      totalVehiclesWithActiveInsurance: allCustomers.reduce((sum, c) => sum + c.vehicles.length, 0),
+      totalActiveInsurances: allCustomers.reduce((sum, c) => sum + c.activeInsurancesCount, 0),
+      totalInsuranceValue: allCustomers.reduce((sum, c) => sum + c.totalInsuranceValue, 0),
+      totalPaidAmount: allCustomers.reduce((sum, c) => sum + c.totalPaidAmount, 0),
+      totalRemainingDebt: allCustomers.reduce((sum, c) => sum + c.totalRemainingDebt, 0)
+    };
+
+    const response = buildPaginatedResponse(customers, total, page, parsedLimit);
+
+    return res.status(200).json({
+      message: "Customers with active insurance retrieved successfully",
+      timestamp: new Date().toISOString(),
+      filters: {
+        insuranceCompany: insuranceCompany || null,
+        insuranceType: insuranceType || null,
+        agentName: agentName || null,
+        city: city || null,
+        search: search || null
+      },
+      summary,
+      ...response,
+      customers: response.data
+    });
+
+  } catch (error) {
+    logger.error("Error fetching customers with active insurance:", error);
+    next(error);
+  }
+};
+
+// View Insurance Document with Official Settings
+export const viewOfficialInsuranceDocument = async (req, res, next) => {
+  try {
+    const { insuredId, vehicleId, insuranceId } = req.params;
+
+    // Get active document settings
+    const documentSettings = await DocumentSettings.findOne({ isActive: true });
+    if (!documentSettings) {
+      return res.status(404).json({
+        success: false,
+        message: "No active document settings found. Please configure document settings first."
+      });
+    }
+
+    // Get insured customer
+    const insured = await insuredModel.findById(insuredId);
+    if (!insured) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    // Get vehicle
+    const vehicle = insured.vehicles.id(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({
+        success: false,
+        message: "Vehicle not found"
+      });
+    }
+
+    // Get insurance
+    const insurance = vehicle.insurance.id(insuranceId);
+    if (!insurance) {
+      return res.status(404).json({
+        success: false,
+        message: "Insurance not found"
+      });
+    }
+
+    // Format dates
+    const formatDate = (date) => {
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    };
+
+    // Build official document
+    const officialDocument = {
+      // Document settings
+      settings: {
+        logo: documentSettings.logo,
+        companyName: documentSettings.companyName,
+        header: documentSettings.header,
+        footer: documentSettings.footer,
+        margins: documentSettings.documentTemplate
+      },
+
+      // Document info
+      documentInfo: {
+        title: "Insurance Certificate",
+        documentNumber: insurance._id.toString().substring(0, 8).toUpperCase(),
+        issueDate: formatDate(new Date()),
+        validFrom: formatDate(insurance.insuranceStartDate),
+        validUntil: formatDate(insurance.insuranceEndDate)
+      },
+
+      // Customer information
+      customer: {
+        name: `${insured.first_name} ${insured.last_name}`,
+        idNumber: insured.id_Number,
+        phone: insured.phone_number,
+        email: insured.email,
+        city: insured.city
+      },
+
+      // Vehicle information
+      vehicle: {
+        plateNumber: vehicle.plateNumber,
+        model: vehicle.model,
+        type: vehicle.type,
+        color: vehicle.color,
+        ownership: vehicle.ownership,
+        modelNumber: vehicle.modelNumber
+      },
+
+      // Insurance details
+      insurance: {
+        type: insurance.insuranceType,
+        company: insurance.insuranceCompany,
+        category: insurance.insuranceCategory,
+        amount: insurance.insuranceAmount,
+        paidAmount: insurance.paidAmount,
+        remainingDebt: insurance.remainingDebt,
+        status: insurance.insuranceStatus || 'active',
+        isUnder24: insurance.isUnder24,
+        agent: insurance.agent || 'N/A'
+      },
+
+      // Payment summary
+      paymentSummary: {
+        totalAmount: insurance.insuranceAmount,
+        totalPaid: insurance.paidAmount,
+        outstanding: insurance.remainingDebt,
+        paymentsCount: insurance.payments ? insurance.payments.length : 0,
+        payments: insurance.payments ? insurance.payments.map(payment => ({
+          amount: payment.amount,
+          method: payment.paymentMethod,
+          date: formatDate(payment.paymentDate),
+          receiptNumber: payment.receiptNumber || 'N/A',
+          notes: payment.notes || ''
+        })) : []
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Official insurance document retrieved successfully",
+      data: officialDocument
+    });
+
+  } catch (error) {
+    logger.error("Error generating official insurance document:", error);
+    next(error);
+  }
+};
+
+// View Payment Receipt with Official Settings
+export const viewOfficialPaymentReceipt = async (req, res, next) => {
+  try {
+    const { insuredId, vehicleId, insuranceId, paymentId } = req.params;
+
+    // Get active document settings
+    const documentSettings = await DocumentSettings.findOne({ isActive: true });
+    if (!documentSettings) {
+      return res.status(404).json({
+        success: false,
+        message: "No active document settings found. Please configure document settings first."
+      });
+    }
+
+    // Get insured customer
+    const insured = await insuredModel.findById(insuredId);
+    if (!insured) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    // Get vehicle
+    const vehicle = insured.vehicles.id(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({
+        success: false,
+        message: "Vehicle not found"
+      });
+    }
+
+    // Get insurance
+    const insurance = vehicle.insurance.id(insuranceId);
+    if (!insurance) {
+      return res.status(404).json({
+        success: false,
+        message: "Insurance not found"
+      });
+    }
+
+    // Get payment
+    const payment = insurance.payments.id(paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found"
+      });
+    }
+
+    // Format dates
+    const formatDate = (date) => {
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    };
+
+    // Format currency
+    const formatCurrency = (amount) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'decimal',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    };
+
+    // Build official receipt
+    const officialReceipt = {
+      // Document settings
+      settings: {
+        logo: documentSettings.logo,
+        companyName: documentSettings.companyName,
+        header: documentSettings.header,
+        footer: documentSettings.footer,
+        margins: documentSettings.documentTemplate
+      },
+
+      // Receipt info
+      receiptInfo: {
+        title: "Payment Receipt",
+        receiptNumber: payment.receiptNumber || payment._id.toString().substring(0, 8).toUpperCase(),
+        issueDate: formatDate(new Date()),
+        paymentDate: formatDate(payment.paymentDate)
+      },
+
+      // Customer information
+      customer: {
+        name: `${insured.first_name} ${insured.last_name}`,
+        idNumber: insured.id_Number,
+        phone: insured.phone_number,
+        email: insured.email
+      },
+
+      // Vehicle information
+      vehicle: {
+        plateNumber: vehicle.plateNumber,
+        model: vehicle.model,
+        type: vehicle.type
+      },
+
+      // Insurance reference
+      insuranceReference: {
+        type: insurance.insuranceType,
+        company: insurance.insuranceCompany,
+        policyNumber: insurance._id.toString().substring(0, 8).toUpperCase()
+      },
+
+      // Payment details
+      paymentDetails: {
+        amount: formatCurrency(payment.amount),
+        amountNumeric: payment.amount,
+        method: payment.paymentMethod,
+        paymentDate: formatDate(payment.paymentDate),
+        receiptNumber: payment.receiptNumber || 'N/A',
+        notes: payment.notes || '',
+        recordedBy: payment.recordedBy ? payment.recordedBy.toString() : 'System'
+      },
+
+      // Cheque details (if applicable)
+      chequeDetails: payment.paymentMethod === 'cheque' && payment.chequeId ? {
+        chequeNumber: payment.chequeNumber || 'N/A',
+        chequeDate: payment.chequeDate ? formatDate(payment.chequeDate) : 'N/A',
+        chequeId: payment.chequeId.toString()
+      } : null,
+
+      // Summary
+      summary: {
+        totalInsuranceAmount: formatCurrency(insurance.insuranceAmount),
+        totalPaid: formatCurrency(insurance.paidAmount),
+        remainingBalance: formatCurrency(insurance.remainingDebt),
+        thisPayment: formatCurrency(payment.amount)
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Official payment receipt retrieved successfully",
+      data: officialReceipt
+    });
+
+  } catch (error) {
+    logger.error("Error generating official payment receipt:", error);
+    next(error);
+  }
+};
+
+/**
+ * Add payment to existing insurance
+ * POST /api/v1/insured/addPayment/:insuredId/:vehicleId/:insuranceId
+ */
+export const addPaymentToInsurance = async (req, res, next) => {
+  try {
+    const { insuredId, vehicleId, insuranceId } = req.params;
+    const {
+      amount,
+      paymentMethod,
+      paymentDate,
+      notes,
+      receiptNumber,
+      chequeNumber,
+      chequeDate,
+      chequeStatus
+    } = req.body;
+
+    // Validate required fields
+    if (!amount || !paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount and payment method are required"
+      });
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be greater than 0"
+      });
+    }
+
+    // Validate payment method
+    const validPaymentMethods = ['cash', 'card', 'cheque', 'bank_transfer'];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment method must be one of: ${validPaymentMethods.join(', ')}`
+      });
+    }
+
+    // If cheque, validate cheque fields
+    if (paymentMethod === 'cheque') {
+      if (!chequeNumber || !chequeDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Cheque number and cheque date are required for cheque payments"
+        });
+      }
+    }
+
+    // Find customer
+    const insured = await insuredModel.findById(insuredId);
+    if (!insured) {
+      return res.status(404).json({
+        success: false,
+        message: "Customer not found"
+      });
+    }
+
+    // Find vehicle
+    const vehicle = insured.vehicles.id(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({
+        success: false,
+        message: "Vehicle not found"
+      });
+    }
+
+    // Find insurance
+    const insurance = vehicle.insurance.id(insuranceId);
+    if (!insurance) {
+      return res.status(404).json({
+        success: false,
+        message: "Insurance not found"
+      });
+    }
+
+    // Check if insurance is already fully paid
+    if (insurance.remainingDebt <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Insurance is already fully paid"
+      });
+    }
+
+    // Check if payment amount exceeds remaining debt
+    if (amount > insurance.remainingDebt) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment amount (${amount}) exceeds remaining debt (${insurance.remainingDebt})`
+      });
+    }
+
+    // Create cheque document if payment method is cheque
+    let chequeId = null;
+    if (paymentMethod === 'cheque') {
+      const chequeDoc = await ChequeModel.create({
+        chequeNumber: chequeNumber,
+        customer: {
+          insuredId: insuredId,
+          name: `${insured.first_name} ${insured.last_name}`,
+          idNumber: insured.id_Number,
+          phoneNumber: insured.phone_number
+        },
+        chequeDate: new Date(chequeDate),
+        amount: amount,
+        status: chequeStatus || 'pending',
+        insuranceId: insuranceId,
+        vehicleId: vehicleId,
+        notes: notes || `Payment for ${insurance.insuranceType} insurance`,
+        createdBy: req.user._id
+      });
+      chequeId = chequeDoc._id;
+    }
+
+    // Auto-generate receipt number if not provided
+    let finalReceiptNumber = receiptNumber;
+    if (!finalReceiptNumber || finalReceiptNumber.trim() === '') {
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      finalReceiptNumber = `REC-${timestamp}-${random}`;
+    }
+
+    // Create payment object
+    const newPayment = {
+      amount: parseFloat(amount),
+      paymentMethod: paymentMethod,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      notes: notes || '',
+      receiptNumber: finalReceiptNumber,
+      recordedBy: req.user._id,
+      chequeId: chequeId,
+      chequeNumber: paymentMethod === 'cheque' ? chequeNumber : null,
+      chequeDate: paymentMethod === 'cheque' ? new Date(chequeDate) : null
+    };
+
+    // Add payment to insurance
+    insurance.payments.push(newPayment);
+
+    // Save the document (pre-save hook will recalculate paidAmount and remainingDebt)
+    await insured.save();
+
+    // Create revenue record
+    await RevenueModel.create({
+      title: `Insurance Payment - ${insurance.insuranceType}`,
+      amount: parseFloat(amount),
+      receivedFrom: `${insured.first_name} ${insured.last_name}`,
+      paymentMethod: paymentMethod === 'cheque' ? 'check' : paymentMethod,
+      date: paymentDate ? new Date(paymentDate) : new Date(),
+      description: notes || `${paymentMethod} payment for ${insurance.insuranceCompany} insurance`,
+      category: 'Insurance Payment',
+      insuranceId: insuranceId,
+      customerId: insuredId
+    });
+
+    // Invalidate related caches
+    await invalidateAllRelatedCaches();
+
+    // Log audit
+    await logAudit({
+      userId: req.user._id,
+      action: "Add Payment to Insurance",
+      entity: "Insurance Payment",
+      entityId: insuranceId,
+      userName: req.user.name,
+      newValue: {
+        amount: amount,
+        paymentMethod: paymentMethod,
+        insuranceId: insuranceId,
+        customerId: insuredId,
+        vehicleId: vehicleId
+      }
+    });
+
+    // Get updated insurance data
+    const updatedInsured = await insuredModel.findById(insuredId);
+    const updatedVehicle = updatedInsured.vehicles.id(vehicleId);
+    const updatedInsurance = updatedVehicle.insurance.id(insuranceId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment added successfully",
+      data: {
+        payment: newPayment,
+        insurance: {
+          _id: updatedInsurance._id,
+          insuranceType: updatedInsurance.insuranceType,
+          insuranceCompany: updatedInsurance.insuranceCompany,
+          insuranceAmount: updatedInsurance.insuranceAmount,
+          paidAmount: updatedInsurance.paidAmount,
+          remainingDebt: updatedInsurance.remainingDebt,
+          paymentsCount: updatedInsurance.payments.length
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error("Error adding payment to insurance:", error);
+    next(error);
+  }
+};
+
+/**
+ * Get all payments with filters
+ * GET /api/v1/insured/payments/all
+ * Query params: customerId, paymentMethod, startDate, endDate, page, limit
+ */
+export const getAllPayments = async (req, res, next) => {
+  try {
+    const {
+      customerId,
+      paymentMethod,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50,
+      sortBy = 'paymentDate',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Parse pagination
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    // Build aggregation pipeline
+    const pipeline = [];
+
+    // Match stage - filter by customerId if provided
+    const matchStage = {};
+    if (customerId) {
+      matchStage._id = new mongoose.Types.ObjectId(customerId);
+    }
+
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // Unwind vehicles
+    pipeline.push({ $unwind: "$vehicles" });
+
+    // Unwind insurance
+    pipeline.push({ $unwind: "$vehicles.insurance" });
+
+    // Unwind payments
+    pipeline.push({ $unwind: "$vehicles.insurance.payments" });
+
+    // Build payment filter
+    const paymentMatch = {};
+
+    // Filter by payment method
+    if (paymentMethod) {
+      paymentMatch["vehicles.insurance.payments.paymentMethod"] = paymentMethod;
+    }
+
+    // Filter by date range
+    if (startDate || endDate) {
+      paymentMatch["vehicles.insurance.payments.paymentDate"] = {};
+
+      if (startDate) {
+        paymentMatch["vehicles.insurance.payments.paymentDate"].$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        // Set to end of day
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        paymentMatch["vehicles.insurance.payments.paymentDate"].$lte = endDateTime;
+      }
+    }
+
+    if (Object.keys(paymentMatch).length > 0) {
+      pipeline.push({ $match: paymentMatch });
+    }
+
+    // Lookup user who recorded the payment
+    pipeline.push({
+      $lookup: {
+        from: "users",
+        localField: "vehicles.insurance.payments.recordedBy",
+        foreignField: "_id",
+        as: "recordedByUser"
+      }
+    });
+
+    // Project final structure
+    pipeline.push({
+      $project: {
+        paymentId: "$vehicles.insurance.payments._id",
+        amount: "$vehicles.insurance.payments.amount",
+        paymentMethod: "$vehicles.insurance.payments.paymentMethod",
+        paymentDate: "$vehicles.insurance.payments.paymentDate",
+        notes: "$vehicles.insurance.payments.notes",
+        receiptNumber: "$vehicles.insurance.payments.receiptNumber",
+        chequeNumber: "$vehicles.insurance.payments.chequeNumber",
+        chequeDate: "$vehicles.insurance.payments.chequeDate",
+        chequeId: "$vehicles.insurance.payments.chequeId",
+        recordedBy: {
+          $arrayElemAt: ["$recordedByUser.name", 0]
+        },
+        recordedById: "$vehicles.insurance.payments.recordedBy",
+        customer: {
+          _id: "$_id",
+          name: { $concat: ["$first_name", " ", "$last_name"] },
+          firstName: "$first_name",
+          lastName: "$last_name",
+          idNumber: "$id_Number",
+          phone: "$phone_number",
+          email: "$email",
+          city: "$city"
+        },
+        vehicle: {
+          _id: "$vehicles._id",
+          plateNumber: "$vehicles.plateNumber",
+          model: "$vehicles.model",
+          type: "$vehicles.type",
+          color: "$vehicles.color"
+        },
+        insurance: {
+          _id: "$vehicles.insurance._id",
+          insuranceType: "$vehicles.insurance.insuranceType",
+          insuranceCompany: "$vehicles.insurance.insuranceCompany",
+          insuranceAmount: "$vehicles.insurance.insuranceAmount",
+          paidAmount: "$vehicles.insurance.paidAmount",
+          remainingDebt: "$vehicles.insurance.remainingDebt",
+          insuranceStartDate: "$vehicles.insurance.insuranceStartDate",
+          insuranceEndDate: "$vehicles.insurance.insuranceEndDate"
+        }
+      }
+    });
+
+    // Sort
+    const sortField = sortBy === 'paymentDate' ? 'paymentDate' :
+                      sortBy === 'amount' ? 'amount' : 'paymentDate';
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+    pipeline.push({ $sort: { [sortField]: sortDirection } });
+
+    // Get total count before pagination
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const [payments, countResult] = await Promise.all([
+      insuredModel.aggregate([...pipeline, { $skip: skip }, { $limit: parsedLimit }]),
+      insuredModel.aggregate(countPipeline)
+    ]);
+
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+    const totalPages = Math.ceil(total / parsedLimit);
+
+    // Calculate summary statistics
+    const summaryPipeline = [...pipeline.slice(0, -1)]; // All except sort
+    const allPayments = await insuredModel.aggregate(summaryPipeline);
+
+    const summary = {
+      totalPayments: allPayments.length,
+      totalAmount: allPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
+      byPaymentMethod: {
+        cash: allPayments.filter(p => p.paymentMethod === 'cash').reduce((sum, p) => sum + p.amount, 0),
+        card: allPayments.filter(p => p.paymentMethod === 'card').reduce((sum, p) => sum + p.amount, 0),
+        cheque: allPayments.filter(p => p.paymentMethod === 'cheque').reduce((sum, p) => sum + p.amount, 0),
+        bank_transfer: allPayments.filter(p => p.paymentMethod === 'bank_transfer').reduce((sum, p) => sum + p.amount, 0)
+      },
+      paymentMethodCounts: {
+        cash: allPayments.filter(p => p.paymentMethod === 'cash').length,
+        card: allPayments.filter(p => p.paymentMethod === 'card').length,
+        cheque: allPayments.filter(p => p.paymentMethod === 'cheque').length,
+        bank_transfer: allPayments.filter(p => p.paymentMethod === 'bank_transfer').length
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Payments retrieved successfully",
+      filters: {
+        customerId: customerId || null,
+        paymentMethod: paymentMethod || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      summary,
+      pagination: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total,
+        totalPages,
+        hasNextPage: parsedPage < totalPages,
+        hasPrevPage: parsedPage > 1
+      },
+      data: payments
+    });
+
+  } catch (error) {
+    logger.error("Error fetching payments:", error);
+    next(error);
+  }
+};
+
+/**
+ * Get due insurances and due cheques
+ * GET /api/v1/insured/due-items/all
+ * Query params: customerId, startDate, endDate, type, page, limit
+ */
+export const getDueItems = async (req, res, next) => {
+  try {
+    const {
+      customerId,
+      startDate,
+      endDate,
+      type = 'all', // 'all', 'insurances', 'cheques'
+      page = 1,
+      limit = 50,
+      sortBy = 'dueDate',
+      sortOrder = 'asc'
+    } = req.query;
+
+    // Parse pagination
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let dueInsurances = [];
+    let dueCheques = [];
+
+    // ============= Get Due Insurances =============
+    if (type === 'all' || type === 'insurances') {
+      const insurancePipeline = [];
+
+      // Match customer if provided
+      const customerMatch = {};
+      if (customerId) {
+        customerMatch._id = new mongoose.Types.ObjectId(customerId);
+      }
+      if (Object.keys(customerMatch).length > 0) {
+        insurancePipeline.push({ $match: customerMatch });
+      }
+
+      // Unwind vehicles and insurance
+      insurancePipeline.push({ $unwind: "$vehicles" });
+      insurancePipeline.push({ $unwind: "$vehicles.insurance" });
+
+      // Match due insurances (has remaining debt)
+      const insuranceMatch = {
+        "vehicles.insurance.remainingDebt": { $gt: 0 }
+      };
+
+      // Date filter for insurance end date
+      if (startDate || endDate) {
+        insuranceMatch["vehicles.insurance.insuranceEndDate"] = {};
+        if (startDate) {
+          insuranceMatch["vehicles.insurance.insuranceEndDate"].$gte = new Date(startDate);
+        }
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          insuranceMatch["vehicles.insurance.insuranceEndDate"].$lte = endDateTime;
+        }
+      }
+
+      insurancePipeline.push({ $match: insuranceMatch });
+
+      // Project insurance data
+      insurancePipeline.push({
+        $project: {
+          type: { $literal: "insurance" },
+          itemId: "$vehicles.insurance._id",
+          dueDate: "$vehicles.insurance.insuranceEndDate",
+          amount: "$vehicles.insurance.remainingDebt",
+          totalAmount: "$vehicles.insurance.insuranceAmount",
+          paidAmount: "$vehicles.insurance.paidAmount",
+          status: {
+            $cond: {
+              if: { $lt: ["$vehicles.insurance.insuranceEndDate", today] },
+              then: "overdue",
+              else: "upcoming"
+            }
+          },
+          daysUntilDue: {
+            $divide: [
+              { $subtract: ["$vehicles.insurance.insuranceEndDate", today] },
+              1000 * 60 * 60 * 24
+            ]
+          },
+          customer: {
+            _id: "$_id",
+            name: {
+              $concat: [
+                { $toString: "$first_name" },
+                " ",
+                { $toString: "$last_name" }
+              ]
+            },
+            firstName: "$first_name",
+            lastName: "$last_name",
+            idNumber: "$id_Number",
+            phone: "$phone_number",
+            email: "$email",
+            city: "$city"
+          },
+          vehicle: {
+            _id: "$vehicles._id",
+            plateNumber: "$vehicles.plateNumber",
+            model: "$vehicles.model",
+            type: "$vehicles.type"
+          },
+          insurance: {
+            _id: "$vehicles.insurance._id",
+            insuranceType: "$vehicles.insurance.insuranceType",
+            insuranceCompany: "$vehicles.insurance.insuranceCompany",
+            insuranceStartDate: "$vehicles.insurance.insuranceStartDate",
+            insuranceEndDate: "$vehicles.insurance.insuranceEndDate"
+          },
+          description: {
+            $concat: [
+              "Insurance debt for ",
+              { $toString: "$vehicles.insurance.insuranceType" },
+              " - ",
+              { $toString: "$vehicles.plateNumber" }
+            ]
+          }
+        }
+      });
+
+      dueInsurances = await insuredModel.aggregate(insurancePipeline);
+    }
+
+    // ============= Get Due Cheques =============
+    if (type === 'all' || type === 'cheques') {
+      const chequeMatch = {
+        status: { $in: ['pending', 'returned'] }
+      };
+
+      // Filter by customer
+      if (customerId) {
+        chequeMatch['customer.insuredId'] = new mongoose.Types.ObjectId(customerId);
+      }
+
+      // Date filter for cheque date
+      if (startDate || endDate) {
+        chequeMatch.chequeDate = {};
+        if (startDate) {
+          chequeMatch.chequeDate.$gte = new Date(startDate);
+        }
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          chequeMatch.chequeDate.$lte = endDateTime;
+        }
+      }
+
+      const cheques = await ChequeModel.find(chequeMatch)
+        .populate('customer.insuredId', 'first_name last_name id_Number phone_number email city')
+        .lean();
+
+      dueCheques = cheques.map(cheque => {
+        const chequeDate = new Date(cheque.chequeDate);
+        const daysUntilDue = Math.floor((chequeDate - today) / (1000 * 60 * 60 * 24));
+
+        return {
+          type: "cheque",
+          itemId: cheque._id,
+          dueDate: cheque.chequeDate,
+          amount: cheque.amount,
+          totalAmount: cheque.amount,
+          paidAmount: 0,
+          status: chequeDate < today ? "overdue" : "upcoming",
+          daysUntilDue: daysUntilDue,
+          customer: cheque.customer?.insuredId ? {
+            _id: cheque.customer.insuredId._id,
+            name: `${cheque.customer.insuredId.first_name} ${cheque.customer.insuredId.last_name}`,
+            firstName: cheque.customer.insuredId.first_name,
+            lastName: cheque.customer.insuredId.last_name,
+            idNumber: cheque.customer.insuredId.id_Number,
+            phone: cheque.customer.insuredId.phone_number,
+            email: cheque.customer.insuredId.email,
+            city: cheque.customer.insuredId.city
+          } : null,
+          cheque: {
+            _id: cheque._id,
+            chequeNumber: cheque.chequeNumber,
+            chequeDate: cheque.chequeDate,
+            status: cheque.status,
+            bankName: cheque.bankName,
+            notes: cheque.notes
+          },
+          description: `Cheque ${cheque.chequeNumber} - ${cheque.status}`,
+          insurance: cheque.insuranceId ? {
+            _id: cheque.insuranceId
+          } : null
+        };
+      });
+    }
+
+    // ============= Combine and Sort =============
+    let allDueItems = [...dueInsurances, ...dueCheques];
+
+    // Sort
+    if (sortBy === 'dueDate') {
+      allDueItems.sort((a, b) => {
+        const dateA = new Date(a.dueDate);
+        const dateB = new Date(b.dueDate);
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+    } else if (sortBy === 'amount') {
+      allDueItems.sort((a, b) => {
+        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+      });
+    } else if (sortBy === 'status') {
+      allDueItems.sort((a, b) => {
+        const statusOrder = { overdue: 0, upcoming: 1 };
+        const orderA = statusOrder[a.status] || 2;
+        const orderB = statusOrder[b.status] || 2;
+        return sortOrder === 'asc' ? orderA - orderB : orderB - orderA;
+      });
+    }
+
+    // ============= Calculate Summary =============
+    const summary = {
+      totalItems: allDueItems.length,
+      totalDueAmount: allDueItems.reduce((sum, item) => sum + item.amount, 0),
+
+      insurances: {
+        count: dueInsurances.length,
+        totalAmount: dueInsurances.reduce((sum, item) => sum + item.amount, 0),
+        overdue: dueInsurances.filter(i => i.status === 'overdue').length,
+        upcoming: dueInsurances.filter(i => i.status === 'upcoming').length
+      },
+
+      cheques: {
+        count: dueCheques.length,
+        totalAmount: dueCheques.reduce((sum, item) => sum + item.amount, 0),
+        overdue: dueCheques.filter(c => c.status === 'overdue').length,
+        upcoming: dueCheques.filter(c => c.status === 'upcoming').length,
+        pending: dueCheques.filter(c => c.cheque.status === 'pending').length,
+        returned: dueCheques.filter(c => c.cheque.status === 'returned').length
+      },
+
+      byStatus: {
+        overdue: {
+          count: allDueItems.filter(i => i.status === 'overdue').length,
+          amount: allDueItems.filter(i => i.status === 'overdue').reduce((sum, i) => sum + i.amount, 0)
+        },
+        upcoming: {
+          count: allDueItems.filter(i => i.status === 'upcoming').length,
+          amount: allDueItems.filter(i => i.status === 'upcoming').reduce((sum, i) => sum + i.amount, 0)
+        }
+      }
+    };
+
+    // ============= Pagination =============
+    const total = allDueItems.length;
+    const totalPages = Math.ceil(total / parsedLimit);
+    const paginatedItems = allDueItems.slice(skip, skip + parsedLimit);
+
+    return res.status(200).json({
+      success: true,
+      message: "Due items retrieved successfully",
+      filters: {
+        customerId: customerId || null,
+        type: type,
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      summary,
+      pagination: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total,
+        totalPages,
+        hasNextPage: parsedPage < totalPages,
+        hasPrevPage: parsedPage > 1
+      },
+      data: paginatedItems
+    });
+
+  } catch (error) {
+    logger.error("Error fetching due items:", error);
     next(error);
   }
 };

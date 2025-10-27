@@ -72,3 +72,12 @@ export const AddEmployee={
         }),
     }).required()
 }
+
+export const resetEmployeePassword = {
+    body: Joi.object({
+        newPassword: Joi.string().required().min(7).messages({
+            'string.min': 'Password must be at least 7 characters long',
+            'any.required': 'New password is required'
+        }),
+    }).required()
+}

@@ -1,16 +1,27 @@
 import { ExpenseModel } from "../../../../DB/models/Expense.model.js";
 import { insuredModel } from "../../../../DB/models/Insured.model.js";
+import { getPaginationParams, buildPaginatedResponse } from "../../../utils/pagination.js";
+import logger from "../../../utils/logService.js";
 
 
 export const addExpense = async (req, res, next) => {
   try {
-    const { title, amount, paidBy, paymentMethod, description } = req.body;
+    const { title, amount, paidBy, paymentMethod, status, description, date } = req.body;
     if (!title || !amount || !paidBy) {
       return res.status(400).json({ message: "Title, amount, and paidBy are required" });
     }
 
-    const receiptNumber = `EXP-${Date.now()}`; 
-    const expense = new ExpenseModel({ title, amount, paidBy, paymentMethod, description, receiptNumber });
+    const receiptNumber = `EXP-${Date.now()}`;
+    const expense = new ExpenseModel({
+      title,
+      amount,
+      paidBy,
+      paymentMethod,
+      status,
+      description,
+      receiptNumber,
+      ...(date && { date })
+    });
     const savedExpense = await expense.save();
 
     res.status(201).json({ message: "Expense recorded successfully", expense: savedExpense });
@@ -64,15 +75,113 @@ export const getExpenses = async (req, res, next) => {
   }
 };
 
+/**
+ * Get All Expenses with Filters
+ * @query {string} startDate - Filter by expense date from (optional)
+ * @query {string} endDate - Filter by expense date to (optional)
+ * @query {string} status - Filter by status: 'pending', 'paid', 'cancelled', or 'all' (default: 'all')
+ * @query {string} paymentMethod - Filter by payment method: 'cash', 'card', 'cheque', 'bank_transfer' (optional)
+ * @query {string} paidBy - Filter by who paid the expense (optional)
+ * @query {number} page - Page number for pagination (optional)
+ * @query {number} limit - Number of items per page (optional)
+ */
+export const getExpensesWithFilters = async (req, res, next) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      status = 'all',
+      paymentMethod,
+      paidBy
+    } = req.query;
+    const { page, limit, skip } = getPaginationParams(req.query);
+
+    // Build filter conditions
+    const filter = {};
+
+    // Date range filter
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) {
+        filter.date.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter.date.$lte = new Date(endDate);
+      }
+    }
+
+    // Status filter
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    // Payment method filter
+    if (paymentMethod) {
+      filter.paymentMethod = paymentMethod;
+    }
+
+    // Paid by filter
+    if (paidBy) {
+      filter.paidBy = paidBy;
+    }
+
+    // Execute query with pagination
+    const [expenses, total] = await Promise.all([
+      ExpenseModel.find(filter)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ExpenseModel.countDocuments(filter)
+    ]);
+
+    const response = buildPaginatedResponse(expenses, total, page, limit);
+
+    // Calculate summary statistics
+    const allExpenses = await ExpenseModel.find(filter).lean();
+    const summary = {
+      totalExpenses: total,
+      totalAmount: allExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0),
+      pendingExpenses: allExpenses.filter(exp => exp.status === 'pending').length,
+      paidExpenses: allExpenses.filter(exp => exp.status === 'paid').length,
+      cancelledExpenses: allExpenses.filter(exp => exp.status === 'cancelled').length,
+      byPaymentMethod: {
+        cash: allExpenses.filter(exp => exp.paymentMethod === 'cash').reduce((sum, exp) => sum + exp.amount, 0),
+        card: allExpenses.filter(exp => exp.paymentMethod === 'card').reduce((sum, exp) => sum + exp.amount, 0),
+        cheque: allExpenses.filter(exp => exp.paymentMethod === 'cheque').reduce((sum, exp) => sum + exp.amount, 0),
+        bank_transfer: allExpenses.filter(exp => exp.paymentMethod === 'bank_transfer').reduce((sum, exp) => sum + exp.amount, 0),
+      }
+    };
+
+    return res.status(200).json({
+      message: "Expenses retrieved successfully",
+      timestamp: new Date().toISOString(),
+      filters: {
+        startDate: startDate || null,
+        endDate: endDate || null,
+        status: status || 'all',
+        paymentMethod: paymentMethod || null,
+        paidBy: paidBy || null
+      },
+      summary,
+      ...response,
+      expenses: response.data
+    });
+  } catch (error) {
+    logger.error("Error fetching expenses with filters:", error);
+    next(error);
+  }
+};
+
 
 export const updateExpense = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, amount, paidBy, paymentMethod, description } = req.body;
+    const { title, amount, paidBy, paymentMethod, status, description, date } = req.body;
 
     const updatedExpense = await ExpenseModel.findByIdAndUpdate(
       id,
-      { title, amount, paidBy, paymentMethod, description },
+      { title, amount, paidBy, paymentMethod, status, description, ...(date && { date }) },
       { new: true, runValidators: true }
     );
 

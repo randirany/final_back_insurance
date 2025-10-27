@@ -100,7 +100,31 @@ export const updateVehicleSchema = Joi.object({
   price: Joi.number().min(0).optional()
 });
 
-// Validation schema for adding insurance
+// Payment object validation schema
+const paymentObjectSchema = Joi.object({
+  amount: Joi.number().required().min(0.01).messages({
+    'number.min': 'Payment amount must be greater than 0'
+  }),
+  paymentMethod: Joi.string().required().valid('cash', 'card', 'cheque', 'bank_transfer').messages({
+    'any.only': 'Payment method must be cash, card, cheque, or bank_transfer'
+  }),
+  paymentDate: Joi.date().optional(),
+  notes: Joi.string().optional().allow('').max(500),
+  receiptNumber: Joi.string().optional().allow(''),
+  chequeNumber: Joi.string().when('paymentMethod', {
+    is: 'cheque',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional()
+  }),
+  chequeDate: Joi.date().when('paymentMethod', {
+    is: 'cheque',
+    then: Joi.date().required(),
+    otherwise: Joi.date().optional()
+  }),
+  chequeStatus: Joi.string().optional().valid('pending', 'cleared', 'returned', 'cancelled')
+});
+
+// Validation schema for adding insurance (NEW VERSION)
 export const addInsuranceSchema = Joi.object({
   insuranceType: Joi.string().required().trim().messages({
     'string.empty': 'Insurance type is required'
@@ -109,17 +133,65 @@ export const addInsuranceSchema = Joi.object({
     'string.empty': 'Insurance company is required'
   }),
   agent: Joi.string().optional().allow(''),
-  paymentMethod: Joi.string().required().valid('cash', 'card', 'check', 'bank_transfer').messages({
-    'any.only': 'Payment method must be cash, card, check, or bank_transfer'
-  }),
-  paidAmount: Joi.number().required().min(0).messages({
-    'number.min': 'Paid amount must be a positive number'
-  }),
-  insuranceAmount: Joi.number().required().min(0).messages({
-    'number.min': 'Insurance amount must be a positive number'
-  }),
+  agentId: Joi.string().optional().allow(''),
   isUnder24: Joi.boolean().required(),
-  priceisOnTheCustomer: Joi.number().required().min(0)
+
+  // Total insurance value
+  insuranceAmount: Joi.number().required().min(0).messages({
+    'number.min': 'Insurance amount must be a positive number',
+    'any.required': 'Insurance amount is required'
+  }),
+
+  // Agent flow
+  agentFlow: Joi.string().optional().valid('to_agent', 'from_agent', 'none').messages({
+    'any.only': 'Agent flow must be to_agent, from_agent, or none'
+  }),
+
+  // Agent amount (for credit/debit)
+  agentAmount: Joi.number().optional().min(0).messages({
+    'number.min': 'Agent amount must be a positive number'
+  }),
+
+  // Multi-method payments array
+  payments: Joi.array().items(paymentObjectSchema).optional().messages({
+    'array.base': 'Payments must be an array'
+  }),
+
+  // Optional date overrides
+  insuranceStartDate: Joi.date().optional(),
+  insuranceEndDate: Joi.date().optional().min(Joi.ref('insuranceStartDate')).messages({
+    'date.min': 'End date must be after start date'
+  })
+});
+
+// Validation schema for adding single payment to existing insurance
+export const addPaymentSchema = Joi.object({
+  amount: Joi.number().required().min(0.01).messages({
+    'number.min': 'Payment amount must be greater than 0',
+    'any.required': 'Payment amount is required'
+  }),
+  paymentMethod: Joi.string().required().valid('cash', 'card', 'cheque', 'bank_transfer').messages({
+    'any.only': 'Payment method must be cash, card, cheque, or bank_transfer',
+    'any.required': 'Payment method is required'
+  }),
+  paymentDate: Joi.date().optional(),
+  notes: Joi.string().optional().allow('').max(500),
+  receiptNumber: Joi.string().optional().allow(''),
+  chequeNumber: Joi.string().when('paymentMethod', {
+    is: 'cheque',
+    then: Joi.string().required().messages({
+      'any.required': 'Cheque number is required when payment method is cheque'
+    }),
+    otherwise: Joi.string().optional()
+  }),
+  chequeDate: Joi.date().when('paymentMethod', {
+    is: 'cheque',
+    then: Joi.date().required().messages({
+      'any.required': 'Cheque date is required when payment method is cheque'
+    }),
+    otherwise: Joi.date().optional()
+  }),
+  chequeStatus: Joi.string().optional().valid('pending', 'cleared', 'returned', 'cancelled')
 });
 
 // Validation schema for adding a check
@@ -161,4 +233,31 @@ export const vehicleInsuranceReportQuerySchema = Joi.object({
   company: Joi.string().optional(),
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional()
+});
+
+// Validation schema for customer search
+export const searchCustomerQuerySchema = Joi.object({
+  searchKey: Joi.string().required().trim().min(1).max(50).messages({
+    'string.empty': 'Search key is required',
+    'string.min': 'Search key must be at least 1 character',
+    'string.max': 'Search key must not exceed 50 characters',
+    'any.required': 'Search key is required'
+  })
+});
+
+// Validation schema for getAllVehicleInsurances with filters
+export const vehicleInsurancesFilterSchema = Joi.object({
+  startDate: Joi.date().optional(),
+  endDate: Joi.date().min(Joi.ref('startDate')).optional().messages({
+    'date.min': 'End date must be after start date'
+  }),
+  agent: Joi.string().optional().trim(),
+  insuranceCompany: Joi.string().optional().trim(),
+  insuranceType: Joi.string().optional().trim(),
+  status: Joi.string().optional().valid('all', 'active', 'expired').messages({
+    'any.only': 'Status must be one of: all, active, expired'
+  }),
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+  sortBy: Joi.string().optional()
 });

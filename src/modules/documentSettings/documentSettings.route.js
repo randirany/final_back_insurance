@@ -36,15 +36,7 @@ documentSettingsRouter.get(
   documentSettingsController.getAllDocumentSettings
 );
 
-// Get document settings by ID
-documentSettingsRouter.get(
-  endpointsDocumentSettings.GET_DOCUMENT_SETTINGS_BY_ID,
-  auth(endpointsRolesDocumentSettings.GET_DOCUMENT_SETTINGS_BY_ID),
-  validation(documentSettingsValidation.getDocumentSettingsById),
-  documentSettingsController.getDocumentSettingsById
-);
-
-// Update document settings with optional logo upload
+// Update document settings with optional logo upload (must be before /:id route)
 documentSettingsRouter.put(
   endpointsDocumentSettings.UPDATE_DOCUMENT_SETTINGS,
   auth(endpointsRolesDocumentSettings.UPDATE_DOCUMENT_SETTINGS),
@@ -54,7 +46,7 @@ documentSettingsRouter.put(
   documentSettingsController.updateDocumentSettings
 );
 
-// Activate document settings
+// Activate document settings (must be before /:id route)
 documentSettingsRouter.patch(
   endpointsDocumentSettings.ACTIVATE_DOCUMENT_SETTINGS,
   auth(endpointsRolesDocumentSettings.ACTIVATE_DOCUMENT_SETTINGS),
@@ -62,12 +54,20 @@ documentSettingsRouter.patch(
   documentSettingsController.activateDocumentSettings
 );
 
-// Delete document settings
+// Delete document settings (must be before /:id route)
 documentSettingsRouter.delete(
   endpointsDocumentSettings.DELETE_DOCUMENT_SETTINGS,
   auth(endpointsRolesDocumentSettings.DELETE_DOCUMENT_SETTINGS),
   validation(documentSettingsValidation.deleteDocumentSettings),
   documentSettingsController.deleteDocumentSettings
+);
+
+// Get document settings by ID (must be last among GET routes)
+documentSettingsRouter.get(
+  endpointsDocumentSettings.GET_DOCUMENT_SETTINGS_BY_ID,
+  auth(endpointsRolesDocumentSettings.GET_DOCUMENT_SETTINGS_BY_ID),
+  validation(documentSettingsValidation.getDocumentSettingsById),
+  documentSettingsController.getDocumentSettingsById
 );
 
 export default documentSettingsRouter;

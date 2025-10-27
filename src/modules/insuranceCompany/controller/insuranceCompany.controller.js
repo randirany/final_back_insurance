@@ -224,3 +224,40 @@ export const getInsuranceCompanyById = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get insurance companies by insurance type
+ * GET /api/v1/company/by-type/:insuranceTypeId
+ */
+export const getCompaniesByInsuranceType = async (req, res, next) => {
+  try {
+    const { insuranceTypeId } = req.params;
+
+    // Verify insurance type exists
+    const insuranceType = await InsuranceTypeModel.findById(insuranceTypeId);
+    if (!insuranceType) {
+      return res.status(404).json({ message: "Insurance type not found" });
+    }
+
+    // Find all companies that have this insurance type
+    const companies = await InsuranceCompany.find({
+      insuranceTypes: insuranceTypeId
+    })
+      .populate('insuranceTypes', 'name description pricing_type_id')
+      .populate('roadServices', 'service_name normal_price old_car_price cutoff_year description is_active');
+
+    return res.status(200).json({
+      message: "Insurance companies retrieved successfully",
+      insuranceType: {
+        _id: insuranceType._id,
+        name: insuranceType.name,
+        description: insuranceType.description
+      },
+      count: companies.length,
+      companies
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};

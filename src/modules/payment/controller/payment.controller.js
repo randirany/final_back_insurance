@@ -84,13 +84,31 @@ export const createPayment = async (req, res, next) => {
           requiresThreeDS: result.requiresThreeDS,
           redirectUrl: result.redirectUrl,
           transactionId: result.transactionId
+        },
+        // Return full Tranzila response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          data: result.data,
+          requiresThreeDS: result.requiresThreeDS,
+          redirectUrl: result.redirectUrl,
+          transactionId: result.transactionId,
+          message: result.message
         }
       });
     } else {
       return res.status(400).json({
         success: false,
         message: result.message || "Payment failed",
-        error: result.error
+        error: result.error,
+        // Return full Tranzila error response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          error: result.error,
+          message: result.message,
+          details: result.details
+        }
       });
     }
   } catch (error) {
@@ -121,13 +139,26 @@ export const verifyTransaction = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         message: "Transaction verified successfully",
-        data: result.data
+        data: result.data,
+        // Return full Tranzila response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          data: result.data
+        }
       });
     } else {
       return res.status(400).json({
         success: false,
         message: result.error || "Transaction verification failed",
-        details: result.details
+        details: result.details,
+        // Return full Tranzila error response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          error: result.error,
+          details: result.details
+        }
       });
     }
   } catch (error) {
@@ -158,13 +189,26 @@ export const voidTransaction = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         message: "Transaction voided successfully",
-        data: result.data
+        data: result.data,
+        // Return full Tranzila response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          data: result.data
+        }
       });
     } else {
       return res.status(400).json({
         success: false,
         message: result.error || "Transaction void failed",
-        details: result.details
+        details: result.details,
+        // Return full Tranzila error response
+        tranzilaResponse: {
+          success: result.success,
+          statusCode: result.statusCode,
+          error: result.error,
+          details: result.details
+        }
       });
     }
   } catch (error) {

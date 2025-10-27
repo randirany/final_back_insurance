@@ -2,6 +2,40 @@
 import mongoose, { Schema } from "mongoose";
 
 
+// Payment subdocument schema for multi-method payments
+const paymentSchema = new mongoose.Schema({
+  paymentDate: {
+    type: Date,
+    required: true,
+    default: Date.now
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  paymentMethod: {
+    type: String,
+    enum: ["cash", "card", "cheque", "bank_transfer"],
+    required: true
+  },
+  receiptNumber: {
+    type: String
+  },
+  notes: {
+    type: String,
+    maxlength: 500
+  },
+  chequeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Cheque"
+  },
+  recordedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "user"
+  }
+}, { timestamps: true });
+
 const vehicleInsuranceSchema = new mongoose.Schema({
   insuranceStartDate: { type: Date },
   insuranceEndDate: { type: Date },
@@ -21,25 +55,52 @@ const vehicleInsuranceSchema = new mongoose.Schema({
 
   insuranceCompany: { type: String, required: true },
   agent: { type: String },
-
-  paymentMethod: {
-    type: String,
-    required: true,
-    enum: ["cash", "card", "check", "bank_transfer"]
+  agentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "user"
   },
 
-  insuranceAmount: { type: Number },
+  // Agent Flow: "to_agent" (agent sells to company) or "from_agent" (company sells via agent)
+  agentFlow: {
+    type: String,
+    enum: ["to_agent", "from_agent", "none"],
+    default: "none",
+    comment: "to_agent = Agent owes company, from_agent = Company owes agent"
+  },
 
-  paidAmount: { type: Number, required: true },
-  remainingDebt: { type: Number },
+  // Amount issued from/to agent
+  agentAmount: {
+    type: Number,
+    default: 0,
+    comment: "Amount credited to agent if from_agent, or amount agent owes if to_agent"
+  },
+
+  // Total insurance value
+  insuranceAmount: {
+    type: Number,
+    required: true,
+    comment: "Total value of insurance policy"
+  },
+
+  // Multi-method payments array
+  payments: [paymentSchema],
+
+  // Auto-calculated from payments array
+  paidAmount: {
+    type: Number,
+    default: 0,
+    comment: "Auto-calculated: sum of all payments"
+  },
+
+  remainingDebt: {
+    type: Number,
+    default: 0,
+    comment: "Auto-calculated: insuranceAmount - paidAmount"
+  },
+
   insuranceStatus: { type: String, default: "active" },
   refundAmount: { type: Number, default: 0 },
-  insuranceFiles: [{ type: String, required: true }],
-  priceisOnTheCustomer: {
-
-    type: Number,
-    required: true
-  },
+  insuranceFiles: [{ type: String }],
 
   // Reference to separate Cheque documents
   cheques: [{
@@ -50,7 +111,14 @@ const vehicleInsuranceSchema = new mongoose.Schema({
 
 
 vehicleInsuranceSchema.pre("save", function (next) {
+  // Auto-calculate paidAmount from payments array
+  if (this.payments && this.payments.length > 0) {
+    this.paidAmount = this.payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  }
+
+  // Auto-calculate remainingDebt
   this.remainingDebt = this.insuranceAmount - this.paidAmount;
+
   next();
 });
 

@@ -4,8 +4,17 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "cross-env NODE_ENV=production node server.js",
-    "dev": "cross-env NODE_ENV=development nodemon server.js"
+    "start": "cross-env NODE_ENV=production node index.js",
+    "dev": "cross-env NODE_ENV=development nodemon index.js",
+    "migrate": "node migrations/migrate.js up",
+    "migrate:down": "node migrations/migrate.js down",
+    "migrate:list": "node migrations/migrate.js list",
+    "docker:build": "docker build -t insurance-app .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f app",
+    "docker:prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d",
+    "docker:restart": "docker-compose restart app"
   },
   "keywords": [],
   "author": "",

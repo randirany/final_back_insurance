@@ -37,13 +37,58 @@ const departmentSchema = new Schema(
       {
         type: String,
         enum: [
-          "addAccedent", "showAccedent", "deleteAccedent",
+          // Accident permissions
+          "addAccident", "deleteAccident", "updateAccident", "allAccident",
+          "updateStatus", "assignAccident", "addComment", "getComments",
+
+          // Notification permissions
           "createNotification", "getNotifications", "markAsRead", "Deletenotification",
-          "addInsured", "deleteInsured", "allInsured", "findbyidInsured",
-          "addcar", "removeCar", "showVehicles",
-          "addRoad", "deleteRoad", "updateRoad", "allRoad",
+
+          // Insured (Customer) permissions
+          "addInsured", "deleteInsured", "updateInsured", "allInsured", "findbyidInsured", "searchCustomer",
+
+          // Vehicle permissions
+          "addcar", "removeCar", "showVehicles", "updateCar",
+
+          // Road/Service permissions
+          "addService", "updateService", "deleteService", "allServices",
+
+          // Agent permissions
           "addAgents", "deleteAgents", "updateAgents", "allAgents",
-          "addCompany", "deleteCompany", "upateCompany", "allCompany"
+
+          // Insurance Company permissions
+          "addCompany", "deleteCompany", "upateCompany", "allCompany",
+
+          // Department permissions
+          "addDepartment", "deleteDepartment", "updateDepartment", "allDepartments", "DepartmentById",
+
+          // User/Employee permissions
+          "addHeadOfDepartmentToDepartmen", "deleteHeadOfDepartmentToDepartmen", "getHeadOfDepartment",
+          "addEmployee", "deleteEmployee", "updateEmployee", "allEmployee",
+
+          // Document Settings permissions
+          "createDocumentSettings", "getActiveDocumentSettings", "getAllDocumentSettings",
+          "getDocumentSettingsById", "updateDocumentSettings", "deleteDocumentSettings", "activateDocumentSettings",
+
+          // Insurance Type permissions
+          "addType", "updateType", "deleteType", "allTypes",
+
+          // Expense permissions
+          "addExpense", "getExpenses", "updateExpense", "deleteExpense",
+          "getNetProfit", "getCompanyFinancialReport", "cancelInsurance",
+
+          // Revenue permissions
+          "transferInsurance", "getCustomerPaymentsReport", "getCancelledInsurancesReport",
+
+          // Cheque permissions
+          "addCheque", "addChequeToInsurance", "getAllCheques", "getChequeStatistics",
+          "getChequeById", "getCustomerCheques", "updateChequeStatus", "deleteCheque",
+
+          // Audit Log permissions
+          "viewAuditLogs",
+
+          // Payment permissions
+          "createPayment", "verifyTransaction", "voidTransaction", "validateCard"
         ],
       },
     ],

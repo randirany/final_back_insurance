@@ -12,6 +12,7 @@ insuranceCompanyRouter.post('/addInsuranceCompany',auth(endpoints.addCompany),in
 
 // Read
 insuranceCompanyRouter.get('/all',auth(endpoints.allCompany),insuranceCompanyRoute.getAllInsuranceCompanies)
+insuranceCompanyRouter.get('/by-type/:insuranceTypeId',auth(endpoints.allCompany),insuranceCompanyRoute.getCompaniesByInsuranceType)
 insuranceCompanyRouter.get('/:id',auth(endpoints.allCompany),insuranceCompanyRoute.getInsuranceCompanyById)
 
 // Update
